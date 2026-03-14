@@ -1,7 +1,10 @@
 import { gameService } from "../services/gameService.js";
+import Match from "../models/Match.js";
+import User from "../models/User.js";
+import { calculateElo } from "../utils/utils.js";
 
 export const registerGameHandler = (io, socket) => {
-  socket.on("move_attempt", ({ gameId, from, to, promotion }) => {
+  socket.on("move_attempt", async ({ gameId, from, to, promotion }) => {
     const game = gameService.getGame(gameId);
 
     if (!game) {
@@ -23,16 +26,20 @@ export const registerGameHandler = (io, socket) => {
     }
 
     try {
-      const move = instance.move({
-        from,
-        to,
-        promotion: promotion || "q",
-      });
+      const piece = instance.get(from);
+      const isPromotion =
+        piece && piece.type === "p" && (to.endsWith("8") || to.endsWith("1"));
+
+      const moveData = { from, to };
+      if (isPromotion) {
+        moveData.promotion = promotion || "q";
+      }
+
+      const move = instance.move(moveData);
 
       if (!move) {
         return socket.emit("move_rejected", { reason: "illegal_move" });
       }
-
       io.to(gameId).emit("board_sync", {
         fen: instance.fen(),
         lastMove: move,
@@ -46,25 +53,112 @@ export const registerGameHandler = (io, socket) => {
         if (instance.isCheckmate()) {
           reason = "checkmate";
           winner = instance.turn() === "w" ? "black" : "white";
-        } else if (
-          instance.isDraw() ||
-          instance.isStalemate() ||
-          instance.isThreefoldRepetition() ||
-          instance.isInsufficientMaterial()
-        ) {
-          reason = "draw";
+        } else if (instance.isStalemate()) {
+          reason = "stalemate";
+          winner = "draw";
+        } else if (instance.isThreefoldRepetition()) {
+          reason = "repetition";
+          winner = "draw";
+        } else if (instance.isInsufficientMaterial()) {
+          reason = "insufficient_material";
+          winner = "draw";
+        } else {
+          reason = "agreement";
           winner = "draw";
         }
+
+        const dateString = new Date()
+          .toISOString()
+          .split("T")[0]
+          .replace(/-/g, ".");
+        const resultString =
+          winner === "white" ? "1-0" : winner === "black" ? "0-1" : "1/2-1/2";
+
+        instance.header("Event", "Arena Match");
+        instance.header("Site", "local");
+        instance.header("Date", dateString);
+        instance.header("White", players.white.user.userName);
+        instance.header("Black", players.black.user.userName);
+        instance.header("Result", resultString);
+
+        const finalPgn = instance.pgn();
+
+        const whiteResult =
+          winner === "white" ? "win" : winner === "draw" ? "draw" : "loss";
+        const blackResult =
+          winner === "black" ? "win" : winner === "draw" ? "draw" : "loss";
+
+        const whiteStats = calculateElo(
+          players.white.user.rating,
+          players.black.user.rating,
+          whiteResult,
+          players.white.user.gamesPlayed,
+        );
+        const blackStats = calculateElo(
+          players.black.user.rating,
+          players.white.user.rating,
+          blackResult,
+          players.black.user.gamesPlayed,
+        );
 
         io.to(gameId).emit("game_over", {
           winner,
           reason,
-          pgn: instance.pgn(),
+          pgn: finalPgn,
+          ratingChanges: {
+            white: { delta: whiteStats.delta, newRating: whiteStats.newRating },
+            black: { delta: blackStats.delta, newRating: blackStats.newRating },
+          },
         });
+
+        try {
+          await Promise.all([
+            User.findByIdAndUpdate(players.white.user._id, {
+              $inc: {
+                gamesPlayed: 1,
+                wins: winner === "white" ? 1 : 0,
+                losses: winner === "black" ? 1 : 0,
+                draws: winner === "draw" ? 1 : 0,
+              },
+              $set: { rating: whiteStats.newRating },
+            }),
+            User.findByIdAndUpdate(players.black.user._id, {
+              $inc: {
+                gamesPlayed: 1,
+                wins: winner === "black" ? 1 : 0,
+                losses: winner === "white" ? 1 : 0,
+                draws: winner === "draw" ? 1 : 0,
+              },
+              $set: { rating: blackStats.newRating },
+            }),
+          ]);
+
+          await Match.create({
+            gameId,
+            whitePlayer: players.white.user._id,
+            blackPlayer: players.black.user._id,
+            winner,
+            endReason: reason,
+            pgn: finalPgn,
+            ratingChanges: {
+              white: whiteStats.delta,
+              black: blackStats.delta,
+            },
+            moveCount: instance.history().length,
+          });
+
+          console.log(`Match ${gameId} saved. Ratings updated in db.`);
+        } catch (err) {
+          console.error(
+            `Failed to save match data for ${gameId} in db:`,
+            err.message,
+          );
+        }
 
         gameService.removeGame(gameId);
       }
     } catch (error) {
+      console.error("[Game Error]:", error);
       socket.emit("move_rejected", { reason: "illegal_move" });
     }
   });
