@@ -1,7 +1,7 @@
 import { gameService } from "../services/gameService.js";
 import Match from "../models/Match.js";
 import User from "../models/User.js";
-import { calculateElo } from "../utils/utils.js";
+import { calculateElo } from "../utils/calculateElo.js";
 
 export const registerGameHandler = (io, socket) => {
   socket.on("move_attempt", async ({ gameId, from, to, promotion }) => {
