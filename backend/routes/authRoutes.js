@@ -3,7 +3,6 @@ import {
   registerEmailPassword,
   loginEmailPassword,
   handleGoogleAuth,
-  forgotPassword,
 } from "../controllers/authController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 
