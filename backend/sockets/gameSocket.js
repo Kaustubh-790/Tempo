@@ -9,6 +9,7 @@ export const registerGameHandler = (io, socket) => {
 
     if (!game) {
       return socket.emit("move_rejected", { reason: "game_not_found" });
+      g;
     }
 
     const { instance, players } = game;
@@ -156,6 +157,41 @@ export const registerGameHandler = (io, socket) => {
         }
 
         gameService.removeGame(gameId);
+
+        const finishedArenaId = game.arenaId;
+
+        gameService.removeGame(gameId);
+
+        if (finishedArenaId) {
+          io.to(gameId).emit("requeue_countdown", {
+            secondsLeft: 5,
+            arenaId: finishedArenaId,
+          });
+
+          setTimeout(async () => {
+            const { arenaService } = await import("../arena/arenaService.js");
+            const { startMatch } = await import("../utils/socketStartMatch.js");
+
+            if (players.white.socket.connected) {
+              const resW = arenaService.joinTimedArena(
+                finishedArenaId,
+                players.white.socket,
+                players.white.user,
+              );
+              if (resW.success)
+                startMatch(arenaService.matchTimedArena(finishedArenaId));
+            }
+            if (players.black.socket.connected) {
+              const resB = arenaService.joinTimedArena(
+                finishedArenaId,
+                players.black.socket,
+                players.black.user,
+              );
+              if (resB.success)
+                startMatch(arenaService.matchTimedArena(finishedArenaId));
+            }
+          }, 5000);
+        }
       }
     } catch (error) {
       console.error("[Game Error]:", error);

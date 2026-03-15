@@ -6,6 +6,7 @@ import http from "http";
 import { Server } from "socket.io";
 import authRoutes from "./routes/authRoutes.js";
 import setupSockets from "./sockets/index.js";
+import arenaRoutes from "./routes/arenaRoutes.js";
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
+app.use("/api/arena", arenaRoutes);
 
 setupSockets(io);
 

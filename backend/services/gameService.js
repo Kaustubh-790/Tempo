@@ -25,17 +25,16 @@ class GameService {
     if (this.arenaQueue.length < 2) return false;
     const player1 = this.arenaQueue.shift();
     const player2 = this.arenaQueue.shift();
+    return this.createGame(player1, player2, null);
+  }
+
+  createGame(player1, player2, arenaId = null) {
     const gameId = crypto.randomUUID();
-
-    const chess = new Chess();
-
     const gameData = {
-      instance: chess,
+      instance: new Chess(),
       gameId,
-      players: {
-        white: player1,
-        black: player2,
-      },
+      arenaId,
+      players: { white: player1, black: player2 },
     };
 
     this.activeGames.set(gameId, gameData);

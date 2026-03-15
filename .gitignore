@@ -6,7 +6,7 @@
 /frontend/node_modules/
 /frontend/package-lock.json
 
-chessEngine.md
+chessServer.md
 
 /tests
 
