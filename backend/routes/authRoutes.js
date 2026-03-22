@@ -10,6 +10,6 @@ const router = express.Router();
 
 router.post("/register-email", registerEmailPassword);
 router.post("/login-email", loginEmailPassword); // expects a idToken sent by the frontend
-router.post("/google", handleGoogleAuth);
+router.post("/login-google", handleGoogleAuth);
 
 export default router;
