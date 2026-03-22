@@ -104,24 +104,36 @@ const handleGameOver = async (io, game, winner, reason) => {
       const { arenaService } = await import("../arena/arenaService.js");
       const { startMatch } = await import("../utils/socketStartMatch.js");
 
-      // Add ALL players to the queue first, then match — never match after each individual join
+      // Add ALL players to the queue first, then match
       const joined = [];
+
       if (players.white.socket.connected) {
         const res = arenaService.joinArena(
           finishedArenaId,
           players.white.socket,
           players.white.user,
         );
-        if (res.success) joined.push(true);
+        if (res.success) {
+          // Rejoin the arena socket room so they receive queue broadcasts again
+          players.white.socket.join(`arena:${finishedArenaId}`);
+          joined.push(true);
+        }
       }
+
       if (players.black.socket.connected) {
         const res = arenaService.joinArena(
           finishedArenaId,
           players.black.socket,
           players.black.user,
         );
-        if (res.success) joined.push(true);
+        if (res.success) {
+          players.black.socket.join(`arena:${finishedArenaId}`);
+          joined.push(true);
+        }
       }
+
+      // Broadcast queue update with all newly rejoined players visible
+      arenaService.broadcastQueueUpdate(finishedArenaId);
 
       // Try to form as many matches as the newly joined players allow
       for (let i = 0; i < joined.length; i++) {
@@ -148,7 +160,6 @@ export const registerGameHandler = (io, socket) => {
       return socket.emit("move_rejected", { reason: "not_your_game" });
 
     const winner = isWhite ? "black" : "white";
-
     await handleGameOver(io, game, winner, "resignation");
   });
 

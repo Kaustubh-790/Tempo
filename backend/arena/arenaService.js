@@ -30,26 +30,37 @@ class ArenaService {
 
     console.log(`[Arena] ${arenaId} expired. Force-closing active games.`);
 
-    // Notify queued players still waiting
-    for (const { socket } of arena.queue) {
-      socket.emit("arena_expired", { arenaId });
+    // Notify all sockets in the arena room
+    if (this.io) {
+      this.io.to(`arena:${arenaId}`).emit("arena_expired", { arenaId });
     }
 
     // Force-quit any active games tied to this arena
     const activeGames = gameService.getGamesByArenaId(arenaId);
     for (const game of activeGames) {
-      const { gameId, players } = game;
-
+      const { gameId } = game;
       if (this.io) {
         this.io.to(gameId).emit("arena_expired", { arenaId, gameId });
       }
-
       gameService.removeGame(gameId);
       console.log(`[Arena] Force-closed game ${gameId} due to arena expiry.`);
     }
 
     clearTimeout(arena.timer);
     this.timedArenas.delete(arenaId);
+  }
+
+  broadcastQueueUpdate(arenaId) {
+    const arena = this.timedArenas.get(arenaId);
+    if (!arena || !this.io) return;
+
+    this.io.to(`arena:${arenaId}`).emit("arena_queue_update", {
+      queue: arena.queue.map((p) => ({
+        userName: p.user.userName,
+        rating: p.user.rating,
+      })),
+      endTime: arena.endTime,
+    });
   }
 
   joinArena(arenaId, socket, user) {
@@ -72,9 +83,13 @@ class ArenaService {
   }
 
   removeSocketFromAllArenas(socketId) {
+    const affectedArenas = [];
     for (const arena of this.timedArenas.values()) {
+      const before = arena.queue.length;
       arena.queue = arena.queue.filter((p) => p.socket.id !== socketId);
+      if (arena.queue.length !== before) affectedArenas.push(arena.arenaId);
     }
+    return affectedArenas;
   }
 
   matchArena(arenaId) {
@@ -86,7 +101,19 @@ class ArenaService {
     const player1 = arena.queue.shift();
     const player2 = arena.queue.shift();
 
+    // Players are leaving the waiting queue — leave the arena socket room
+    // (they'll be in the game room now instead)
+    player1.socket.leave(`arena:${arenaId}`);
+    player2.socket.leave(`arena:${arenaId}`);
+
+    // Broadcast the updated (shorter) queue to remaining waiters
+    this.broadcastQueueUpdate(arenaId);
+
     return gameService.createGame(player1, player2, arenaId);
+  }
+
+  getArenaEndTime(arenaId) {
+    return this.timedArenas.get(arenaId)?.endTime ?? null;
   }
 }
 
