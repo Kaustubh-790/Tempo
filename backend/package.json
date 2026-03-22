@@ -8,7 +8,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "start:cluster": "pm2 start ecosystem.config.cjs",
+    "test:load": "node tests/loadTest.js"
   },
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
@@ -27,6 +29,8 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.2"
+    "nodemon": "^3.1.2",
+    "pm2": "^6.0.14",
+    "socket.io-client": "^4.8.3"
   }
 }
