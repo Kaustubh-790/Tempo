@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import ProtectedRoute from "../components/ProtectedRoute";
 import Auth from "../pages/Auth";
 import Home from "../pages/Home";
+import Game from "../pages/Game";
 
 function App() {
   const { isAuthenticated, loading } = useAuth();
@@ -23,6 +24,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Home />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/game/:gameId"
+        element={
+          <ProtectedRoute>
+            <Game />
           </ProtectedRoute>
         }
       />

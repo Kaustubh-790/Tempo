@@ -1,8 +1,34 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useSocket } from "../contexts/SocketContex";
+import { useNavigate } from "react-router-dom";
 
 const Home = () => {
   const { currentUser, logout } = useAuth();
+  const socket = useSocket();
+  const navigate = useNavigate();
+  const [isSearching, setIsSearching] = useState(false);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleMatchStarted = (gameData) => {
+      setIsSearching(false);
+
+      navigate(`/game/${gameData.gameId}`, { state: gameData });
+    };
+
+    socket.on("match_started", handleMatchStarted);
+
+    return () => {
+      socket.off("match_started", handleMatchStarted);
+    };
+  }, [socket, navigate]);
+
+  const handleFindMatch = () => {
+    setIsSearching(true);
+    socket.emit("enter_arena");
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
@@ -14,17 +40,17 @@ const Home = () => {
           Welcome, {currentUser?.userName}!
         </p>
 
-        <div className="bg-gray-700 p-4 rounded-lg mb-6 text-left space-y-2">
-          <p>
-            <span className="text-gray-400">Email:</span> {currentUser?.email}
-          </p>
-          <p>
-            <span className="text-gray-400">Rating:</span> {currentUser?.rating}
-          </p>
-          <p>
-            <span className="text-gray-400">Games Played:</span>{" "}
-            {currentUser?.gamesPlayed}
-          </p>
+        <div className="mb-8 p-6 bg-gray-700 rounded-lg border border-gray-600">
+          <h2 className="text-2xl font-semibold mb-4 text-white">
+            Global Arena
+          </h2>
+          <button
+            onClick={handleFindMatch}
+            disabled={isSearching}
+            className="w-full px-4 py-3 font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-500 transition-colors text-lg"
+          >
+            {isSearching ? "Searching for opponent..." : "Play Now"}
+          </button>
         </div>
 
         <button
