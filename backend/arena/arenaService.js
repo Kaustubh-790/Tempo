@@ -4,14 +4,52 @@ import { gameService } from "../services/gameService.js";
 class ArenaService {
   constructor() {
     this.timedArenas = new Map();
+    this.io = null;
   }
 
-  createArena(duration /*minutes */) {
+  setIo(io) {
+    this.io = io;
+  }
+
+  createArena(duration /* minutes */) {
     const arenaId = crypto.randomUUID();
     const endTime = Date.now() + duration * 60 * 1000;
 
-    this.timedArenas.set(arenaId, { arenaId, endTime, queue: [] });
+    const timer = setTimeout(
+      () => this._expireArena(arenaId),
+      duration * 60 * 1000,
+    );
+
+    this.timedArenas.set(arenaId, { arenaId, endTime, queue: [], timer });
     return { arenaId, endTime };
+  }
+
+  _expireArena(arenaId) {
+    const arena = this.timedArenas.get(arenaId);
+    if (!arena) return;
+
+    console.log(`[Arena] ${arenaId} expired. Force-closing active games.`);
+
+    // Notify queued players still waiting
+    for (const { socket } of arena.queue) {
+      socket.emit("arena_expired", { arenaId });
+    }
+
+    // Force-quit any active games tied to this arena
+    const activeGames = gameService.getGamesByArenaId(arenaId);
+    for (const game of activeGames) {
+      const { gameId, players } = game;
+
+      if (this.io) {
+        this.io.to(gameId).emit("arena_expired", { arenaId, gameId });
+      }
+
+      gameService.removeGame(gameId);
+      console.log(`[Arena] Force-closed game ${gameId} due to arena expiry.`);
+    }
+
+    clearTimeout(arena.timer);
+    this.timedArenas.delete(arenaId);
   }
 
   joinArena(arenaId, socket, user) {

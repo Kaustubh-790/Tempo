@@ -2,8 +2,11 @@ import { authenticateSocket } from "./authSocket.js";
 import { registerMatchMakingHandlers } from "./matchmakingSocket.js";
 import { registerGameHandler } from "./gameSocket.js";
 import { registerArenaHandlers } from "../arena/arenaSocket.js";
+import { arenaService } from "../arena/arenaService.js";
 
 const setupSockets = (io) => {
+  arenaService.setIo(io);
+
   io.use(authenticateSocket);
   io.on("connection", (socket) => {
     console.log(

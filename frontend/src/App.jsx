@@ -1,0 +1,64 @@
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import ProtectedRoute from "../components/ProtectedRoute";
+import Auth from "../pages/Auth";
+import Home from "../pages/Home";
+import Game from "../pages/Game";
+import Arena from "../pages/Arena";
+
+function App() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">
+        Loading App...
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Home />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/game/:gameId"
+        element={
+          <ProtectedRoute>
+            <Game />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/arena"
+        element={
+          <ProtectedRoute>
+            <Arena />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/arena/:arenaId"
+        element={
+          <ProtectedRoute>
+            <Arena />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/auth"
+        element={!isAuthenticated ? <Auth /> : <Navigate to="/" replace />}
+      />
+    </Routes>
+  );
+}
+
+export default App;

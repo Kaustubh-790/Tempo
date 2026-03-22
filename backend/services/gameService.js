@@ -45,6 +45,14 @@ class GameService {
     return this.activeGames.get(gameId);
   }
 
+  getGamesByArenaId(arenaId) {
+    const games = [];
+    for (const game of this.activeGames.values()) {
+      if (game.arenaId === arenaId) games.push(game);
+    }
+    return games;
+  }
+
   removeGame(gameId) {
     this.activeGames.delete(gameId);
   }
