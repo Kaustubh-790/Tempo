@@ -15,12 +15,4 @@ services:
       - key: MONGODB_URI
         sync: false
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: chess-redis
-          property: connectionString
-
-  - type: redis
-    name: chess-redis
-    ipAllowList: [] # Only allow internal connections
-    plan: free # Default free instance
+        sync: false
