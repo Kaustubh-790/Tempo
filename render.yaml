@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: chess-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: CLIENT_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: chess-redis
+          property: connectionString
+
+  - type: redis
+    name: chess-redis
+    ipAllowList: [] # Only allow internal connections
+    plan: free # Default free instance
