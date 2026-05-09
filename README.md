@@ -8,7 +8,7 @@ Inspired by Lichess (LILA), it supports ranked matchmaking, timed arenas, server
 
 ## Tech Stack
 
-![Node.js](https://img.shields.io/badge/node.js-339933?style=for-the-badge&logo=Node.js&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-ESM-339933?style=flat-square&logo=node.js&logoColor=white)
 ![Express](https://img.shields.io/badge/Express-5-000000?style=flat-square&logo=express&logoColor=white)
 ![Socket.IO](https://img.shields.io/badge/Socket.IO-4-010101?style=flat-square&logo=socket.io&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-ioredis-DC382D?style=flat-square&logo=redis&logoColor=white)
@@ -200,7 +200,7 @@ backend/
 ### Setup
 
 ```bash
-git clone https://github.com/yourusername/chess-server
+git clone https://github.com/Kaustubh-790/Chess-Server
 cd chess-server/backend
 npm install
 ```
