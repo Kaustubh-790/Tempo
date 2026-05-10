@@ -331,8 +331,20 @@ const Game = () => {
           (myColorChar === "b" && targetSquare[1] === "1"));
 
       if (isPromotion) {
-        setPendingPromotion({ from: sourceSquare, to: targetSquare });
-        return false;
+        try {
+          // Make a temporary move to keep the piece on the board visually
+          const tempMove = chessRef.current.move({
+            from: sourceSquare,
+            to: targetSquare,
+            promotion: "q",
+          });
+          if (!tempMove) return false;
+          setFen(chessRef.current.fen());
+          setPendingPromotion({ from: sourceSquare, to: targetSquare });
+          return true; // Don't snap back
+        } catch {
+          return false;
+        }
       }
 
       try {
@@ -360,6 +372,7 @@ const Game = () => {
     const { from, to } = pendingPromotion;
     setPendingPromotion(null);
     try {
+      chessRef.current.undo(); // Undo the temporary queen move
       const result = chessRef.current.move({
         from,
         to,
@@ -374,6 +387,14 @@ const Game = () => {
         promotion: promotionPiece,
       });
     } catch {}
+  };
+
+  const handlePromotionCancel = () => {
+    if (pendingPromotion) {
+      chessRef.current.undo(); // Revert the temporary queen move
+      setFen(chessRef.current.fen());
+      setPendingPromotion(null);
+    }
   };
 
   const canDragPiece = useCallback(
@@ -723,7 +744,7 @@ const Game = () => {
       {pendingPromotion && (
         <div
           className="game-over-overlay"
-          onClick={() => setPendingPromotion(null)}
+          onClick={handlePromotionCancel}
         >
           <div
             className="game-over-modal"
@@ -823,7 +844,7 @@ const Game = () => {
             <button
               className="btn btn-subtle btn-full"
               style={{ marginTop: "0.75rem" }}
-              onClick={() => setPendingPromotion(null)}
+              onClick={handlePromotionCancel}
             >
               Cancel
             </button>
