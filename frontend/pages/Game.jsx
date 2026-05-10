@@ -383,17 +383,18 @@ const Game = () => {
   // );
 
   const onPieceDrop = useCallback(
-    ({ piece, sourceSquare, targetSquare }) => {
+    (sourceSquare, targetSquare, piece) => {
       if (!targetSquare) return false;
       const myColorChar = playerColor === "white" ? "w" : "b";
+
       if (turn !== myColorChar) {
         setStatusText("Not your turn!");
         setTimeout(() => setStatusText(""), 2000);
         return false;
       }
 
-      // piece is a string like "wP", "bQ" etc.
-      const pieceLetter = piece[1].toLowerCase(); // "p", "q", ...
+      // piece is a string like "wP", "bQ", etc.
+      const pieceLetter = piece[1].toLowerCase(); // p, q, r, b, n, k
       const isPromotion =
         pieceLetter === "p" &&
         ((myColorChar === "w" && targetSquare[1] === "8") ||
@@ -402,11 +403,13 @@ const Game = () => {
       if (isPromotion) {
         const posObj = fenStringToPositionObject(chessRef.current.fen());
         delete posObj[sourceSquare];
-        posObj[targetSquare] = piece; // <-- directly the string "wP" or "bP"
+        posObj[targetSquare] = piece; // "wP" or "bP"
+
         setPendingPromotion({ from: sourceSquare, to: targetSquare, posObj });
-        return false;
+        return false; // triggers snap‐back, but posObj overrides it next render
       }
 
+      // Normal move
       try {
         const result = chessRef.current.move({
           from: sourceSquare,
