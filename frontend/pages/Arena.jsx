@@ -145,7 +145,7 @@ const Arena = () => {
     };
     const onQueueUpdate = ({ queue: newQueue, endTime: newEndTime }) => {
       setQueue(newQueue);
-      if (newEndTime && !endTime) setEndTime(newEndTime);
+      if (newEndTime) setEndTime(newEndTime);
     };
     const onArenaExpired = () => {
       setExpired(true);
@@ -162,7 +162,7 @@ const Arena = () => {
       socket.off("arena_queue_update", onQueueUpdate);
       socket.off("arena_expired", onArenaExpired);
     };
-  }, [socket, navigate, endTime]);
+  }, [socket, navigate]);
 
   const handleCreate = async () => {
     setError("");
