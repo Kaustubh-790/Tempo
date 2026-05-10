@@ -549,7 +549,7 @@ const Game = () => {
 
         <div
           className="board-wrapper"
-          style={{ width: boardWidth, height: boardWidth }}
+          style={{ width: boardWidth, height: boardWidth, position: "relative" }}
         >
           <Chessboard
             options={{
@@ -563,6 +563,92 @@ const Game = () => {
               lightSquareStyle: { backgroundColor: "#edeed1" },
             }}
           />
+          {pendingPromotion && (() => {
+            const sqSize = boardWidth / 8;
+            const file = pendingPromotion.to.charCodeAt(0) - 97;
+            const fileIdx = playerColor === "white" ? file : 7 - file;
+            const isTop = playerColor === "white";
+            const promoOptions = [
+              { p: "q", s: playerColor === "white" ? "♕" : "♛" },
+              { p: "n", s: playerColor === "white" ? "♘" : "♞" },
+              { p: "r", s: playerColor === "white" ? "♖" : "♜" },
+              { p: "b", s: playerColor === "white" ? "♗" : "♝" },
+            ];
+            return (
+              <>
+                <div
+                  onClick={handlePromotionCancel}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    zIndex: 99,
+                    background: "rgba(0,0,0,0.25)",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    left: fileIdx * sqSize,
+                    [isTop ? "top" : "bottom"]: 0,
+                    width: sqSize,
+                    zIndex: 100,
+                    display: "flex",
+                    flexDirection: "column",
+                    boxShadow: "2px 4px 16px rgba(0,0,0,0.45)",
+                    borderRadius: 4,
+                    overflow: "hidden",
+                  }}
+                >
+                  {promoOptions.map(({ p, s }) => (
+                    <button
+                      key={p}
+                      onClick={() => handlePromotionPick(p)}
+                      style={{
+                        width: sqSize,
+                        height: sqSize,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "#f0d9b5",
+                        border: "none",
+                        borderBottom: "1px solid rgba(0,0,0,0.1)",
+                        cursor: "pointer",
+                        padding: 0,
+                        fontSize: sqSize * 0.7,
+                        lineHeight: 1,
+                        transition: "background 0.1s",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#dcc4a0"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "#f0d9b5"; }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                  <button
+                    onClick={handlePromotionCancel}
+                    style={{
+                      width: sqSize,
+                      height: sqSize * 0.6,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#e8e0d4",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      fontSize: sqSize * 0.35,
+                      color: "#888",
+                      fontWeight: 700,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#d4ccc0"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "#e8e0d4"; }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         <div className="game-status-bar">
@@ -743,113 +829,8 @@ const Game = () => {
         </div>
       )}
 
-      {pendingPromotion && (
-        <div className="game-over-overlay" onClick={handlePromotionCancel}>
-          <div
-            className="game-over-modal"
-            onClick={(e) => e.stopPropagation()}
-            style={{ minWidth: 280, maxWidth: 320 }}
-          >
-            <p
-              style={{
-                fontSize: "0.7rem",
-                color: "var(--text-muted)",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                marginBottom: "0.5rem",
-              }}
-            >
-              Promote Pawn
-            </p>
-            <h2 style={{ fontSize: "1.15rem", marginBottom: "1.25rem" }}>
-              Choose a piece
-            </h2>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "0.6rem",
-              }}
-            >
-              {[
-                {
-                  piece: "q",
-                  label: "Queen",
-                  symbol: playerColor === "white" ? "♕" : "♛",
-                },
-                {
-                  piece: "r",
-                  label: "Rook",
-                  symbol: playerColor === "white" ? "♖" : "♜",
-                },
-                {
-                  piece: "b",
-                  label: "Bishop",
-                  symbol: playerColor === "white" ? "♗" : "♝",
-                },
-                {
-                  piece: "n",
-                  label: "Knight",
-                  symbol: playerColor === "white" ? "♘" : "♞",
-                },
-              ].map(({ piece, label, symbol }) => (
-                <button
-                  key={piece}
-                  onClick={() => handlePromotionPick(piece)}
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.9rem 0.5rem",
-                    background: "var(--surface-3)",
-                    border: "1px solid var(--border-2)",
-                    borderRadius: "10px",
-                    cursor: "pointer",
-                    transition: "border-color 0.15s, background 0.15s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent-border)";
-                    e.currentTarget.style.background = "var(--accent-dim)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border-2)";
-                    e.currentTarget.style.background = "var(--surface-3)";
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "2.25rem",
-                      lineHeight: 1,
-                      color: "var(--text)",
-                    }}
-                  >
-                    {symbol}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.7rem",
-                      fontWeight: 600,
-                      color: "var(--text-muted)",
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {label}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <button
-              className="btn btn-subtle btn-full"
-              style={{ marginTop: "0.75rem" }}
-              onClick={handlePromotionCancel}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+
+
 
       {gameOver && (
         <div className="game-over-overlay">
