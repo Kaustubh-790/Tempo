@@ -1,8 +1,8 @@
-# ♟ Chess Server
+# ![Tempo](./frontend/public/knight.png) Tempo
 
 A production-grade multiplayer chess server built with Node.js, Socket.IO, and Redis — designed for horizontal scalability and real-time performance.
 
-Inspired by Lichess (LILA), it supports ranked matchmaking, timed arenas, server-side move validation, ELO rating, and PGN/FEN generation.
+Inspired by Lichess [(LILA)](https://github.com/lichess-org/lila), it supports ranked matchmaking, timed arenas, server-side move validation, ELO rating, and PGN/FEN generation.
 
 ---
 
@@ -76,12 +76,12 @@ flowchart TD
 
 **Key design decisions:**
 
-- **All game state lives in Redis** any PM2 worker process can handle any request
+- **All game state lives in Redis** so any PM2 worker process can handle any request.
 - **`@socket.io/redis-adapter`** handles cross-instance socket room fanout transparently across all PM2 workers
-- **Pure WebSocket transport** (`transports: ["websocket"]`) — bypasses Socket.IO's HTTP polling fallback entirely, which eliminates sticky-session requirements at the load balancer level. All workers share state via Redis so any worker can handle any connection
-- **BullMQ worker** handles all MongoDB writes asynchronously after game completion — the game loop never blocks on DB I/O
-- **Distributed matchmaking lock** (`redis SET NX`) prevents two PM2 workers from popping the same two players simultaneously
-- **`localSockets` Map** in `gameSocket.js` short-circuits `io.to(socketId)` when both players land on the same worker process, avoiding a Redis round-trip
+- **Pure WebSocket transport** (`transports: ["websocket"]`) — bypasses Socket.IO's HTTP polling fallback entirely, which eliminates sticky-session requirements at the load balancer level. All workers share state via Redis so any worker can handle any connection.
+- **BullMQ worker** handles all MongoDB writes asynchronously after game completion — the game loop never blocks on DB I/O.
+- **Distributed matchmaking lock** (`redis SET NX`) prevents two PM2 workers from popping the same two players simultaneously.
+- **`localSockets` Map** in `gameSocket.js` short-circuits `io.to(socketId)` when both players land on the same worker process, avoiding a Redis round-trip.
 
 ### Why single EC2 + Nginx instead of multi-instance ALB?
 
@@ -218,8 +218,8 @@ backend/
 ### Setup
 
 ```bash
-git clone https://github.com/Kaustubh-790/Chess-Server
-cd chess-server/backend
+git clone https://github.com/Kaustubh-790/Tempo
+cd Tempo/backend
 npm install
 ```
 
