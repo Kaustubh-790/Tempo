@@ -398,9 +398,13 @@ const Game = () => {
   };
 
   const canDragPiece = useCallback(
-    ({ piece }) => {
+    (args) => {
       if (gameOver) return false;
-      return turn === (playerColor === "white" ? "w" : "b");
+      const pieceStr = typeof args.piece === "string" ? args.piece : args.piece?.piece || args;
+      if (typeof pieceStr !== "string") return false;
+      
+      const myColorChar = playerColor === "white" ? "w" : "b";
+      return turn === myColorChar && pieceStr[0] === myColorChar;
     },
     [playerColor, turn, gameOver],
   );
