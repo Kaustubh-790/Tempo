@@ -64,23 +64,6 @@ const Navbar = () => {
               <p className="text-xs font-semibold text-white truncate max-w-[100px]">
                 {currentUser.userName}
               </p>
-              <p
-                className="text-[10px] font-mono"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {currentUser.rating || "1200"} ELO
-              </p>
-            </div>
-
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm select-none"
-              style={{
-                background: "var(--surface-3)",
-                border: "1px solid var(--border-2)",
-                color: "var(--accent)",
-              }}
-            >
-              {currentUser.userName?.charAt(0).toUpperCase() || "?"}
             </div>
 
             <button
