@@ -14,22 +14,24 @@ import "./workers/dbWorker.js";
 dotenv.config();
 
 const app = express();
-
 const server = http.createServer(app);
+
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: CLIENT_URL,
     methods: ["GET", "POST"],
     credentials: true,
   },
+  transports: ["polling", "websocket"],
 });
 
 io.adapter(createRedisAdapter());
 
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: CLIENT_URL,
     credentials: true,
   }),
 );

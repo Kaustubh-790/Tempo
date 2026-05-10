@@ -11,21 +11,27 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    let newSocket;
+    if (!isAuthenticated) return;
 
-    if (isAuthenticated) {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
-      newSocket = io(backendUrl, {
-        withCredentials: true,
-        transports: ['websocket'],
-      });
-      setSocket(newSocket);
-    }
+    const backendUrl =
+      import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+
+    const newSocket = io(backendUrl, {
+      withCredentials: true,
+      transports: ["polling", "websocket"],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    newSocket.on("connect_error", (err) => {
+      console.error("[Socket] connect_error:", err.message);
+    });
+
+    setSocket(newSocket);
 
     return () => {
-      if (newSocket) {
-        newSocket.close();
-      }
+      newSocket.close();
     };
   }, [isAuthenticated]);
 
