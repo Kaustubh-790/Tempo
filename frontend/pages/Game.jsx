@@ -314,8 +314,9 @@ const Game = () => {
       moveListRef.current.scrollTop = moveListRef.current.scrollHeight;
     }
   });
+
   const onPieceDrop = useCallback(
-    (sourceSquare, targetSquare, piece) => {
+    ({ piece, sourceSquare, targetSquare }) => {
       if (!targetSquare) return false;
       const myColorChar = playerColor === "white" ? "w" : "b";
       if (turn !== myColorChar) {
@@ -323,10 +324,7 @@ const Game = () => {
         setTimeout(() => setStatusText(""), 2000);
         return false;
       }
-
-      // In react-chessboard, piece is a string like "wP" or "bK".
-      // piece[1] extracts the piece type character ("P", "K", etc.).
-      const pieceType = piece[1].toLowerCase();
+      const pieceType = piece.pieceType.toLowerCase();
       const isPromotion =
         pieceType === "p" &&
         ((myColorChar === "w" && targetSquare[1] === "8") ||
