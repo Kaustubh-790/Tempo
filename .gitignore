@@ -7,10 +7,11 @@
 /frontend/node_modules/
 /frontend/package-lock.json
 
-chessServer.md
 
 /tests
 
 chess-server-key-1778429269298.pem
 AWSCLIV2.msi
 remote.env
+another.md
+something.md
