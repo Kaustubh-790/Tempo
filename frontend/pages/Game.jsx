@@ -317,18 +317,22 @@ const Game = () => {
 
   const onPieceDrop = useCallback(
     ({ piece, sourceSquare, targetSquare }) => {
-      if (!targetSquare) return false;
+      console.log("[onPieceDrop] RAW args:", { piece, sourceSquare, targetSquare });
+      console.log("[onPieceDrop] piece type:", typeof piece, "piece value:", JSON.stringify(piece));
+      if (!targetSquare) { console.log("[onPieceDrop] no targetSquare, returning false"); return false; }
       const myColorChar = playerColor === "white" ? "w" : "b";
       if (turn !== myColorChar) {
+        console.log("[onPieceDrop] not my turn. turn:", turn, "myColorChar:", myColorChar);
         setStatusText("Not your turn!");
         setTimeout(() => setStatusText(""), 2000);
         return false;
       }
-      const pieceType = piece.pieceType ? piece.pieceType.toLowerCase() : (piece[1] || "").toLowerCase();
+      const pieceType = piece.pieceType ? piece.pieceType.toLowerCase() : (typeof piece === "string" ? (piece[1] || "").toLowerCase() : "");
       const isPromotion =
         pieceType === "p" &&
         ((myColorChar === "w" && targetSquare[1] === "8") ||
           (myColorChar === "b" && targetSquare[1] === "1"));
+      console.log("[onPieceDrop] pieceType:", pieceType, "isPromotion:", isPromotion, "targetSquare:", targetSquare);
 
       if (isPromotion) {
         try {
