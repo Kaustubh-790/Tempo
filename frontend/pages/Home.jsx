@@ -152,24 +152,6 @@ const Home = () => {
               </button>
             </div>
           )}
-
-          {currentUser && (
-            <div
-              className="mt-14 pt-6 flex items-center gap-8 flex-wrap"
-              style={{ borderTop: "1px solid var(--border)" }}
-            >
-              {[
-                { label: "Rating", val: currentUser.rating ?? 1200 },
-                { label: "Games Played", val: currentUser.gamesPlayed ?? 0 },
-                { label: "Signed in as", val: currentUser.userName },
-              ].map(({ label, val }) => (
-                <div key={label}>
-                  <p className="label mb-0.5">{label}</p>
-                  <p className="text-base font-bold text-white">{val}</p>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </main>
     </div>
