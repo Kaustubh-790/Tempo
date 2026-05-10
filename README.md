@@ -240,7 +240,7 @@ node tests/loadTest.js --pairs=50 --moveDelay=100
 
 ## Deployment
 
-**Current status:** Runs locally via PM2 cluster mode. Redis and MongoDB run locally or via Docker.
+**Current status:** Runs locally via PM2 cluster mode. Redis and MongoDB run via Docker.
 
 **Planned deployment (in progress):** AWS EC2 instances behind an ALB with cookie-based sticky sessions + ElastiCache Redis. The codebase is already built for this — `@socket.io/redis-adapter` handles cross-instance fanout, PM2 cluster config is committed, sticky session handling is documented above.
 

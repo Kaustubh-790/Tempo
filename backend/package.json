@@ -14,6 +14,8 @@
     "test:load": "node tests/loadTest.js"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudformation": "^3.1045.0",
+    "@aws-sdk/client-ec2": "^3.1045.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "axios": "^1.13.6",
     "bullmq": "^5.71.0",

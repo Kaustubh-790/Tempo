@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Automated Single-Instance AWS Deployment for Chess Server (Nginx, PM2, Docker Redis)'
+
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance.
+    Type: String
+  InstanceType:
+    Description: EC2 instance type (Free Tier eligible).
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - t3.micro
+  RepoUrl:
+    Description: The GitHub repository URL to clone the chess server from.
+    Type: String
+    Default: 'https://github.com/Kaustubh-790/Chess-Server.git'
+  DomainName:
+    Description: Your public domain name for the chess server (e.g., chess.yourdomain.com).
+    Type: String
+  MongoDBUri:
+    Description: Your MongoDB Atlas connection string.
+    Type: String
+    NoEcho: true
+  JwtSecret:
+    Description: Secret key for JWT authentication.
+    Type: String
+    NoEcho: true
+  ClientUrl:
+    Description: The allowed CORS Client URL (e.g., https://chess.yourdomain.com).
+    Type: String
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      Ubuntu2204: ami-04b70fa74e45c3917
+    us-east-2:
+      Ubuntu2204: ami-024e6efaf93d85776
+    us-west-1:
+      Ubuntu2204: ami-04a50faf2a2ec1901
+    us-west-2:
+      Ubuntu2204: ami-008fe2fc65df48dac
+    eu-central-1:
+      Ubuntu2204: ami-0e04bcbe83a83792e
+    eu-west-1:
+      Ubuntu2204: ami-0905a3c97561e0b69
+    eu-west-2:
+      Ubuntu2204: ami-0b4c7755efa0be634
+    ap-south-1:
+      Ubuntu2204: ami-03f4878755434977f
+
+Resources:
+  ChessServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH, HTTP, and HTTPS access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  ChessServerInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", Ubuntu2204]
+      SecurityGroups:
+        - !Ref ChessServerSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 16
+            VolumeType: gp3
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -e
+          
+          # Log all output to a file for debugging
+          exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+
+          echo "Starting EC2 UserData provisioning..."
+
+          # 1. Update OS and install prerequisites
+          apt-get update && apt-get upgrade -y
+          apt-get install -y curl git ufw nginx
+
+          # 2. Install Node.js 18
+          curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+          apt-get install -y nodejs
+
+          # 3. Install PM2
+          npm install -g pm2
+
+          # 4. Install Docker
+          apt-get install -y docker.io
+          systemctl start docker
+          systemctl enable docker
+          usermod -aG docker ubuntu
+
+          # 5. Run Redis locally in Docker
+          docker run -d --name redis -p 6379:6379 --restart always redis
+
+          # 6. Clone the repository and install backend dependencies
+          cd /home/ubuntu
+          git clone ${RepoUrl} chess-server
+          cd chess-server/backend
+          
+          # Ensure ubuntu user owns the files
+          chown -R ubuntu:ubuntu /home/ubuntu/chess-server
+          
+          # Install dependencies as ubuntu user
+          sudo -u ubuntu npm install
+
+          # 7. Create Environment Variables (.env)
+          cat <<EOF > .env
+          PORT=5000
+          NODE_ENV=production
+          REDIS_URL=redis://127.0.0.1:6379
+          MONGODB_URI=${MongoDBUri}
+          JWT_SECRET=${JwtSecret}
+          CLIENT_URL=${ClientUrl}
+          EOF
+          chown ubuntu:ubuntu .env
+
+          # 8. Start PM2 Cluster Mode (as ubuntu user)
+          sudo -u ubuntu pm2 start server.js -i max --name chess-server
+          sudo -u ubuntu pm2 save
+          sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u ubuntu --hp /home/ubuntu
+
+          # 9. Configure Nginx Reverse Proxy
+          cat <<EOF > /etc/nginx/sites-available/chess
+          server {
+              listen 80;
+              server_name ${DomainName};
+
+              location / {
+                  proxy_pass http://localhost:5000;
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade \$http_upgrade;
+                  proxy_set_header Connection "upgrade";
+                  proxy_set_header Host \$host;
+                  proxy_cache_bypass \$http_upgrade;
+              }
+          }
+          EOF
+
+          # Enable Nginx site and restart
+          ln -s /etc/nginx/sites-available/chess /etc/nginx/sites-enabled/
+          rm -f /etc/nginx/sites-enabled/default
+          nginx -t
+          systemctl restart nginx
+
+          # 10. Install Certbot (SSL)
+          apt-get install -y certbot python3-certbot-nginx
+
+          # We create a script for the user to run later because Certbot will fail 
+          # during provisioning if the DNS A record is not yet pointing to this EC2's IP.
+          cat <<EOF > /home/ubuntu/setup-ssl.sh
+          #!/bin/bash
+          echo "Before running this script, ensure your domain '${DomainName}' points to this server's public IP."
+          sudo certbot --nginx -d ${DomainName}
+          EOF
+          chmod +x /home/ubuntu/setup-ssl.sh
+          chown ubuntu:ubuntu /home/ubuntu/setup-ssl.sh
+
+          # 11. Configure Firewall (UFW)
+          ufw allow OpenSSH
+          ufw allow 'Nginx Full'
+          ufw --force enable
+
+          echo "Deployment complete! Application is running via PM2."
+
+Outputs:
+  PublicIp:
+    Description: Public IP of the Chess Server
+    Value: !GetAtt ChessServerInstance.PublicIp
+  SslInstructions:
+    Description: Connect to your instance and run the SSL setup script AFTER configuring your DNS.
+    Value: !Sub "ssh ubuntu@${ChessServerInstance.PublicIp} -i your-key.pem && ./setup-ssl.sh"
