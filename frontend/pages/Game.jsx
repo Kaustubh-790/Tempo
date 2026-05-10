@@ -357,9 +357,7 @@ const Game = () => {
         // the target square manually (keeping it as a pawn for now).
         const posObj = fenStringToPositionObject(chessRef.current.fen());
         delete posObj[sourceSquare];
-        posObj[targetSquare] = { pieceType: piece.pieceType }; // still a pawn
-        // Setting this causes the board to use posObj as its position prop on
-        // the very next render, before the snap-back animation can run.
+        posObj[targetSquare] = piece.piece; // e.g. "wP" or "bP"
         setPendingPromotion({ from: sourceSquare, to: targetSquare, posObj });
         return false; // intentional — board snaps back, but posObj overrides it
       }
