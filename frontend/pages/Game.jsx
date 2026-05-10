@@ -336,96 +336,52 @@ const Game = () => {
   //
   // ─────────────────────────────────────────────────────────────────────────────
 
-  // const onPieceDrop = useCallback(
-  //   ({ piece, sourceSquare, targetSquare }) => {
-  //     if (!targetSquare) return false;
-  //     const myColorChar = playerColor === "white" ? "w" : "b";
-  //     if (turn !== myColorChar) {
-  //       setStatusText("Not your turn!");
-  //       setTimeout(() => setStatusText(""), 2000);
-  //       return false;
-  //     }
+  const onPieceDrop = useCallback(
+    ({ piece, sourceSquare, targetSquare }) => {
+      if (!targetSquare) return false;
+      const myColorChar = playerColor === "white" ? "w" : "b";
+      if (turn !== myColorChar) {
+        setStatusText("Not your turn!");
+        setTimeout(() => setStatusText(""), 2000);
+        return false;
+      }
 
-  //     const pieceType = piece.pieceType.toLowerCase();
-  //     const isPromotion =
-  //       pieceType === "p" &&
-  //       ((myColorChar === "w" && targetSquare[1] === "8") ||
-  //         (myColorChar === "b" && targetSquare[1] === "1"));
+      const pieceType = piece.pieceType.toLowerCase();
+      const isPromotion =
+        pieceType === "p" &&
+        ((myColorChar === "w" && targetSquare[1] === "8") ||
+          (myColorChar === "b" && targetSquare[1] === "1"));
 
-  //     if (isPromotion) {
-  //       // Build a position object from the current FEN and move the pawn into
-  //       // the target square manually (keeping it as a pawn for now).
-  //       const posObj = fenStringToPositionObject(chessRef.current.fen());
-  //       delete posObj[sourceSquare];
-  //       posObj[targetSquare] = piece.piece; // e.g. "wP" or "bP"
-  //       setPendingPromotion({ from: sourceSquare, to: targetSquare, posObj });
-  //       return false; // intentional — board snaps back, but posObj overrides it
-  //     }
+      if (isPromotion) {
+        // Build a position object from the current FEN and move the pawn into
+        // the target square manually (keeping it as a pawn for now).
+        const posObj = fenStringToPositionObject(chessRef.current.fen());
+        delete posObj[sourceSquare];
+        posObj[targetSquare] = piece.piece; // Must be a string like "wP" or "bP"
 
-  //     try {
-  //       const result = chessRef.current.move({
-  //         from: sourceSquare,
-  //         to: targetSquare,
-  //       });
-  //       if (!result) return false;
-  //       setFen(chessRef.current.fen());
-  //       socket.emit("move_attempt", {
-  //         gameId,
-  //         from: sourceSquare,
-  //         to: targetSquare,
-  //       });
-  //       return true;
-  //     } catch {
-  //       return false;
-  //     }
-  //   },
-  //   [turn, playerColor, socket, gameId],
-  // );
+        setPendingPromotion({ from: sourceSquare, to: targetSquare, posObj });
+        return false; // intentional — board snaps back, but boardPosition (posObj) overrides it
+      }
 
-  const onPieceDrop = (sourceSquare, targetSquare, piece) => {
-    if (gameOver) return false;
-
-    const myColorChar = playerColor === "white" ? "w" : "b";
-    if (turn !== myColorChar) {
-      setStatusText("Not your turn!");
-      setTimeout(() => setStatusText(""), 2000);
-      return false;
-    }
-
-    // piece = "wP" -> piece[1].toLowerCase() = "p"
-    const pieceLetter = piece[1].toLowerCase();
-    const isPromotion =
-      pieceLetter === "p" &&
-      ((myColorChar === "w" && targetSquare[1] === "8") ||
-        (myColorChar === "b" && targetSquare[1] === "1"));
-
-    if (isPromotion) {
-      const posObj = fenStringToPositionObject(chessRef.current.fen());
-      delete posObj[sourceSquare];
-      posObj[targetSquare] = piece; // Keep the pawn on target visually
-      setPendingPromotion({ from: sourceSquare, to: targetSquare, posObj });
-      return true;
-    }
-
-    // Normal move
-    try {
-      const result = chessRef.current.move({
-        from: sourceSquare,
-        to: targetSquare,
-      });
-      if (!result) return false;
-
-      setFen(chessRef.current.fen());
-      socket.emit("move_attempt", {
-        gameId,
-        from: sourceSquare,
-        to: targetSquare,
-      });
-      return true;
-    } catch (e) {
-      return false;
-    }
-  };
+      try {
+        const result = chessRef.current.move({
+          from: sourceSquare,
+          to: targetSquare,
+        });
+        if (!result) return false;
+        setFen(chessRef.current.fen());
+        socket.emit("move_attempt", {
+          gameId,
+          from: sourceSquare,
+          to: targetSquare,
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [turn, playerColor, socket, gameId, gameOver],
+  );
 
   const handlePromotionPick = (promotionPiece) => {
     if (!pendingPromotion) return;
