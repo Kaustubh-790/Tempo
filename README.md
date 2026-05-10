@@ -1,8 +1,10 @@
-# ![Tempo](./frontend/public/knight.png) [Tempo](chess-server-six.vercel.app)
+# ![Tempo](./frontend/public/knight.png) Tempo
 
 A production-grade multiplayer chess server built with Node.js, Socket.IO, and Redis — designed for horizontal scalability and real-time performance.
 
 Inspired by Lichess [(LILA)](https://github.com/lichess-org/lila), it supports ranked matchmaking, timed arenas, server-side move validation, ELO rating, and PGN/FEN generation.
+
+## live demo: [https://chess-server-six.vercel.app](https://chess-server-six.vercel.app)
 
 ---
 
