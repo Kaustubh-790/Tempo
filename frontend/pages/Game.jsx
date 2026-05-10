@@ -19,6 +19,7 @@ const Game = () => {
 
   const [rejoinStatus, setRejoinStatus] = useState("pending");
   const [confirmResign, setConfirmResign] = useState(false);
+  const [pendingPromotion, setPendingPromotion] = useState(null); // { from, to }
 
   const gameId = gameData?.gameId || routeGameId;
   const playerColor = gameData?.color || "white";
@@ -50,7 +51,6 @@ const Game = () => {
   const [arenaTimeLeft, setArenaTimeLeft] = useState("");
   const moveListRef = useRef(null);
 
-  /* ── Clock helpers ── */
   const formatClock = (ms) => {
     if (ms === undefined || ms === null) return "0:00";
     const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
@@ -76,7 +76,6 @@ const Game = () => {
     };
   };
 
-  /* ── Client-side countdown ── */
   useEffect(() => {
     if (
       gameOver ||
@@ -92,7 +91,6 @@ const Game = () => {
     return () => clearInterval(interval);
   }, [turn, gameOver, isLookingForMatch, gameData?.timeControl]);
 
-  /* ── Arena timer ── */
   useEffect(() => {
     if (!arenaEndTime) return;
     const tick = () => {
@@ -110,13 +108,11 @@ const Game = () => {
     return () => clearInterval(id);
   }, [arenaEndTime]);
 
-  /* ── Rejoin ── */
   useEffect(() => {
     if (!socket || !routeGameId) return;
     socket.emit("rejoin_game", { gameId: routeGameId });
   }, [socket, routeGameId]);
 
-  /* ── Socket events (all logic unchanged) ── */
   useEffect(() => {
     if (!socket) return;
 
@@ -166,11 +162,8 @@ const Game = () => {
       const currentBoard = chessRef.current.fen().split(" ")[0];
 
       if (newBoard === currentBoard) {
-        // Server confirmed OUR move — chess ref already has it, just update server ref
         serverFenRef.current = newFen;
       } else {
-        // OPPONENT moved — find and apply the move so history is preserved
-        // (.move() keeps the history; .load() wipes it, causing the flash-and-disappear bug)
         const tempChess = new Chess(serverFenRef.current);
         const legalMoves = tempChess.moves({ verbose: true });
 
@@ -185,7 +178,6 @@ const Game = () => {
           }
         }
 
-        // Fallback (e.g. server-driven correction after reconnect)
         if (!applied) chessRef.current.load(newFen);
 
         serverFenRef.current = newFen;
@@ -199,9 +191,8 @@ const Game = () => {
     };
 
     const onMoveRejected = ({ reason }) => {
-      // Undo the optimistic local move (preserves history up to that point)
       chessRef.current.undo();
-      // Sanity-check: if undo left us in a wrong state, force-sync with server FEN
+
       if (
         chessRef.current.fen().split(" ")[0] !==
         serverFenRef.current.split(" ")[0]
@@ -301,7 +292,6 @@ const Game = () => {
     };
   }, [socket]);
 
-  /* ── Requeue auto-join ── */
   useEffect(() => {
     if (!requeue || requeue.secondsLeft <= 0) return;
     const timer = setInterval(() => {
@@ -319,14 +309,12 @@ const Game = () => {
     return () => clearInterval(timer);
   }, [requeue, socket]);
 
-  /* ── Auto-scroll move list ── */
   useEffect(() => {
     if (moveListRef.current) {
       moveListRef.current.scrollTop = moveListRef.current.scrollHeight;
     }
   });
 
-  /* ── Board interaction ── */
   const onPieceDrop = useCallback(
     ({ piece, sourceSquare, targetSquare }) => {
       if (!targetSquare) return false;
@@ -341,17 +329,23 @@ const Game = () => {
         pieceType === "p" &&
         ((myColorChar === "w" && targetSquare[1] === "8") ||
           (myColorChar === "b" && targetSquare[1] === "1"));
+
+      if (isPromotion) {
+        setPendingPromotion({ from: sourceSquare, to: targetSquare });
+        return false;
+      }
+
       try {
-        const moveData = { from: sourceSquare, to: targetSquare };
-        if (isPromotion) moveData.promotion = "q";
-        const result = chessRef.current.move(moveData);
+        const result = chessRef.current.move({
+          from: sourceSquare,
+          to: targetSquare,
+        });
         if (!result) return false;
         setFen(chessRef.current.fen());
         socket.emit("move_attempt", {
           gameId,
           from: sourceSquare,
           to: targetSquare,
-          promotion: isPromotion ? "q" : undefined,
         });
         return true;
       } catch {
@@ -361,6 +355,27 @@ const Game = () => {
     [turn, playerColor, socket, gameId],
   );
 
+  const handlePromotionPick = (promotionPiece) => {
+    if (!pendingPromotion) return;
+    const { from, to } = pendingPromotion;
+    setPendingPromotion(null);
+    try {
+      const result = chessRef.current.move({
+        from,
+        to,
+        promotion: promotionPiece,
+      });
+      if (!result) return;
+      setFen(chessRef.current.fen());
+      socket.emit("move_attempt", {
+        gameId,
+        from,
+        to,
+        promotion: promotionPiece,
+      });
+    } catch {}
+  };
+
   const canDragPiece = useCallback(
     ({ piece }) => {
       if (gameOver) return false;
@@ -369,7 +384,6 @@ const Game = () => {
     [playerColor, turn, gameOver],
   );
 
-  /* ── Resign ── */
   const handleResign = () => {
     if (gameOver) return;
     setConfirmResign(true);
@@ -379,7 +393,6 @@ const Game = () => {
     setConfirmResign(false);
   };
 
-  /* ── Move history ── */
   const moveHistory = chessRef.current.history();
   const movePairs = [];
   for (let i = 0; i < moveHistory.length; i += 2) {
@@ -398,7 +411,7 @@ const Game = () => {
     if (!gameOver) return "";
     if (gameOver.reason === "arena_expired") return "Arena Ended";
     if (gameOver.winner === "draw") return "Draw!";
-    if (gameOver.winner === playerColor) return "You Won! 🎉";
+    if (gameOver.winner === playerColor) return "You Won!";
     return "You Lost";
   };
 
@@ -419,7 +432,6 @@ const Game = () => {
     typeof window !== "undefined" ? window.innerWidth - 48 : 560,
   );
 
-  /* ── Loading states ── */
   if (!gameData && rejoinStatus === "pending") {
     return (
       <div
@@ -481,12 +493,9 @@ const Game = () => {
     );
   }
 
-  /* ── Main render ── */
   return (
     <div className="game-container">
-      {/* Board column */}
       <div className="board-column">
-        {/* Opponent panel */}
         <div
           className={`player-panel ${turn === (topColor === "white" ? "w" : "b") ? "active-turn" : ""}`}
         >
@@ -515,7 +524,6 @@ const Game = () => {
           />
         </div>
 
-        {/* Board */}
         <div
           className="board-wrapper"
           style={{ width: boardWidth, height: boardWidth }}
@@ -534,13 +542,11 @@ const Game = () => {
           />
         </div>
 
-        {/* Status bar */}
         <div className="game-status-bar">
           {statusText ||
             (gameOver ? "" : isMyTurn ? "Your turn" : "Opponent's turn")}
         </div>
 
-        {/* Your panel */}
         <div
           className={`player-panel ${isMyTurn && !gameOver ? "active-turn" : ""}`}
         >
@@ -570,9 +576,7 @@ const Game = () => {
         </div>
       </div>
 
-      {/* Sidebar */}
       <div className="game-sidebar">
-        {/* Arena timer */}
         {gameData?.arenaId && (
           <div className="move-history-card">
             <div
@@ -635,18 +639,8 @@ const Game = () => {
           </div>
         )}
 
-        {/* Move history */}
         <div className="move-history-card">
-          <div className="move-history-header">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M13 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7V3zm0 4v5l4.28 2.54-.72 1.21L12 13V7h1z" />
-            </svg>
-            Moves
-          </div>
+          <div className="move-history-header">Moves</div>
           <div className="move-list" ref={moveListRef}>
             {movePairs.length === 0 && (
               <div
@@ -670,24 +664,9 @@ const Game = () => {
           </div>
         </div>
 
-        {/* Action buttons */}
         <div className="game-actions">
           {!gameOver && !isLookingForMatch && (
             <button className="btn-resign" onClick={handleResign}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-                <line x1="4" y1="22" x2="4" y2="15" />
-              </svg>
               Resign
             </button>
           )}
@@ -699,12 +678,11 @@ const Game = () => {
               navigate(gameData?.arenaId ? `/arena/${gameData.arenaId}` : "/");
             }}
           >
-            ← {isLookingForMatch ? "Leave Queue" : "Back to Lobby"}
+            {isLookingForMatch ? "Leave Queue" : "Back to Lobby"}
           </button>
         </div>
       </div>
 
-      {/* ── Resign confirm dialog ── */}
       {confirmResign && (
         <div
           className="game-over-overlay"
@@ -723,21 +701,13 @@ const Game = () => {
               Confirm Action
             </p>
             <h2 style={{ fontSize: "1.25rem" }}>Resign this game?</h2>
-            <p
-              style={{
-                color: "var(--text-muted)",
-                fontSize: "0.875rem",
-                marginBottom: "1.5rem",
-              }}
-            >
-              Your opponent will be declared the winner.
-            </p>
+
             <div className="game-over-actions">
               <button
                 className="btn btn-danger btn-full"
                 onClick={confirmResignYes}
               >
-                Yes, I resign
+                Resign
               </button>
               <button
                 className="btn btn-subtle btn-full"
@@ -750,7 +720,117 @@ const Game = () => {
         </div>
       )}
 
-      {/* ── Game over modal ── */}
+      {pendingPromotion && (
+        <div
+          className="game-over-overlay"
+          onClick={() => setPendingPromotion(null)}
+        >
+          <div
+            className="game-over-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ minWidth: 280, maxWidth: 320 }}
+          >
+            <p
+              style={{
+                fontSize: "0.7rem",
+                color: "var(--text-muted)",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                marginBottom: "0.5rem",
+              }}
+            >
+              Promote Pawn
+            </p>
+            <h2 style={{ fontSize: "1.15rem", marginBottom: "1.25rem" }}>
+              Choose a piece
+            </h2>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "0.6rem",
+              }}
+            >
+              {[
+                {
+                  piece: "q",
+                  label: "Queen",
+                  symbol: playerColor === "white" ? "♕" : "♛",
+                },
+                {
+                  piece: "r",
+                  label: "Rook",
+                  symbol: playerColor === "white" ? "♖" : "♜",
+                },
+                {
+                  piece: "b",
+                  label: "Bishop",
+                  symbol: playerColor === "white" ? "♗" : "♝",
+                },
+                {
+                  piece: "n",
+                  label: "Knight",
+                  symbol: playerColor === "white" ? "♘" : "♞",
+                },
+              ].map(({ piece, label, symbol }) => (
+                <button
+                  key={piece}
+                  onClick={() => handlePromotionPick(piece)}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    padding: "0.9rem 0.5rem",
+                    background: "var(--surface-3)",
+                    border: "1px solid var(--border-2)",
+                    borderRadius: "10px",
+                    cursor: "pointer",
+                    transition: "border-color 0.15s, background 0.15s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "var(--accent-border)";
+                    e.currentTarget.style.background = "var(--accent-dim)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border-2)";
+                    e.currentTarget.style.background = "var(--surface-3)";
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "2.25rem",
+                      lineHeight: 1,
+                      color: "var(--text)",
+                    }}
+                  >
+                    {symbol}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      color: "var(--text-muted)",
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {label}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn btn-subtle btn-full"
+              style={{ marginTop: "0.75rem" }}
+              onClick={() => setPendingPromotion(null)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {gameOver && (
         <div className="game-over-overlay">
           <div className="game-over-modal">
@@ -887,7 +967,6 @@ const Game = () => {
         </div>
       )}
 
-      {/* ── Requeue banner ── */}
       {requeue && (
         <div className="requeue-banner" style={{ zIndex: 9999 }}>
           Queuing for next match in {requeue.secondsLeft}s…
