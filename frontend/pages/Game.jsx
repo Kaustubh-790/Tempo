@@ -383,18 +383,17 @@ const Game = () => {
   // );
 
   const onPieceDrop = useCallback(
-    (sourceSquare, targetSquare, piece) => {
+    ({ piece, sourceSquare, targetSquare }) => {
       if (!targetSquare) return false;
       const myColorChar = playerColor === "white" ? "w" : "b";
-
       if (turn !== myColorChar) {
         setStatusText("Not your turn!");
         setTimeout(() => setStatusText(""), 2000);
         return false;
       }
 
-      // piece is a string like "wP", "bQ", etc.
-      const pieceLetter = piece[1].toLowerCase(); // p, q, r, b, n, k
+      // piece = "wP"  -> piece[1] = "P"  -> .toLowerCase() = "p"
+      const pieceLetter = piece[1].toLowerCase();
       const isPromotion =
         pieceLetter === "p" &&
         ((myColorChar === "w" && targetSquare[1] === "8") ||
@@ -403,10 +402,9 @@ const Game = () => {
       if (isPromotion) {
         const posObj = fenStringToPositionObject(chessRef.current.fen());
         delete posObj[sourceSquare];
-        posObj[targetSquare] = piece; // "wP" or "bP"
-
+        posObj[targetSquare] = piece; // "wP" or "bP" (still a pawn)
         setPendingPromotion({ from: sourceSquare, to: targetSquare, posObj });
-        return false; // triggers snap‐back, but posObj overrides it next render
+        return false; // let the board snap back, posObj hides it
       }
 
       // Normal move
