@@ -1,111 +1,177 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { useSocket } from "../contexts/SocketContext";
 import { useNavigate } from "react-router-dom";
+import { useSocket } from "../contexts/SocketContext";
+import { useAuth } from "../contexts/AuthContext";
+import Navbar from "../components/Navbar";
+
+const TIME_CONTROLS = [
+  { label: "1 + 0", sublabel: "Bullet", initial: 1, increment: 0 },
+  { label: "3 + 2", sublabel: "Blitz", initial: 3, increment: 2 },
+  { label: "5 + 0", sublabel: "Blitz", initial: 5, increment: 0 },
+  { label: "10 + 0", sublabel: "Rapid", initial: 10, increment: 0 },
+];
 
 const Home = () => {
-  const { currentUser, logout } = useAuth();
-  const socket = useSocket();
-  const navigate = useNavigate();
-  const [isSearching, setIsSearching] = useState(false);
-  const [timeControl, setTimeControl] = useState({ label: "3+2", initial: 3, increment: 2 });
+  const [selectedTc, setSelectedTc] = useState(TIME_CONTROLS[1]);
+  const [searching, setSearching] = useState(false);
 
-  const presets = [
-    { label: "1 min", initial: 1, increment: 0 },
-    { label: "3 min", initial: 3, increment: 0 },
-    { label: "3+2", initial: 3, increment: 2 },
-    { label: "10 min", initial: 10, increment: 0 }
-  ];
+  const socket = useSocket();
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!socket) return;
-
-    const handleMatchStarted = (gameData) => {
-      setIsSearching(false);
+    const onMatchStarted = (gameData) => {
+      setSearching(false);
       sessionStorage.setItem(
         `game-${gameData.gameId}`,
         JSON.stringify(gameData),
       );
       navigate(`/game/${gameData.gameId}`, { state: gameData });
     };
-
-    socket.on("match_started", handleMatchStarted);
-
-    return () => {
-      socket.off("match_started", handleMatchStarted);
-    };
+    socket.on("match_started", onMatchStarted);
+    return () => socket.off("match_started", onMatchStarted);
   }, [socket, navigate]);
 
-  const handleFindMatch = () => {
-    setIsSearching(true);
-    socket.emit("enter_arena", { timeControl });
+  const handlePlay = () => {
+    if (!socket) return;
+    setSearching(true);
+    socket.emit("enter_arena", {
+      timeControl: {
+        label: selectedTc.label,
+        initial: selectedTc.initial,
+        increment: selectedTc.increment,
+      },
+    });
   };
 
+  const handleCancel = () => setSearching(false);
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-4">
-      <div className="max-w-md w-full bg-gray-800 p-8 rounded-xl shadow-lg border border-gray-700 text-center">
-        <h1 className="text-4xl font-bold text-orange-500 mb-2">
-          Chess Server
-        </h1>
-        <p className="text-xl text-gray-300 mb-6">
-          Welcome, {currentUser?.userName}!
-        </p>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: "var(--bg)" }}
+    >
+      <Navbar />
 
-        <div className="mb-8 p-6 bg-gray-700 rounded-lg border border-gray-600">
-          <h2 className="text-2xl font-semibold mb-4 text-white">
-            Global Arena
-          </h2>
-
-          <div className="mb-5">
-            <h3 className="text-sm text-gray-400 mb-2">Time Control</h3>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {presets.map((tc) => (
-                <button
-                  key={tc.label}
-                  onClick={() => setTimeControl(tc)}
-                  className={`py-2 px-1 rounded-md text-sm font-semibold transition-colors ${
-                    timeControl.label === tc.label
-                      ? "bg-orange-600 text-white"
-                      : "bg-gray-600 text-gray-300 hover:bg-gray-500"
-                  }`}
-                >
-                  {tc.label}
-                </button>
-              ))}
-            </div>
+      <main className="flex-1 flex items-start justify-center px-4 pt-14 pb-12">
+        <div className="w-full max-w-3xl">
+          <div className="mb-10">
+            <h1 className="text-4xl font-bold text-white tracking-tight mb-2">
+              Quick Pairing
+            </h1>
+            <p
+              className="text-sm max-w-sm"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Select a time control to enter the matchmaking queue.
+            </p>
           </div>
 
-          <button
-            onClick={handleFindMatch}
-            disabled={isSearching}
-            className="w-full px-4 py-3 font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-500 transition-colors text-lg"
-          >
-            {isSearching ? "Searching for opponent..." : `Play ${timeControl.label}`}
-          </button>
-        </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-8">
+            {TIME_CONTROLS.map((tc) => {
+              const isSelected = selectedTc.label === tc.label;
+              return (
+                <button
+                  key={tc.label}
+                  onClick={() => setSelectedTc(tc)}
+                  disabled={searching}
+                  className="relative p-5 rounded-xl text-left transition-all duration-150 focus:outline-none"
+                  style={{
+                    background: isSelected
+                      ? "var(--surface-3)"
+                      : "var(--surface)",
+                    border: isSelected
+                      ? "1px solid var(--accent-border)"
+                      : "1px solid var(--border)",
+                    boxShadow: isSelected
+                      ? "0 0 0 1px var(--accent-dim) inset"
+                      : "none",
+                  }}
+                >
+                  {isSelected && (
+                    <span
+                      className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full"
+                      style={{ background: "var(--accent)" }}
+                    />
+                  )}
+                  <p
+                    className="text-2xl font-bold tabular-nums tracking-tight mb-1"
+                    style={{ color: isSelected ? "var(--text)" : "#9ca3af" }}
+                  >
+                    {tc.label}
+                  </p>
+                  <p
+                    className="text-xs font-medium"
+                    style={{
+                      color: isSelected ? "var(--accent)" : "var(--text-dim)",
+                    }}
+                  >
+                    {tc.sublabel}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
 
-        <div className="mb-8 p-6 bg-gray-700 rounded-lg border border-gray-600">
-          <h2 className="text-2xl font-semibold mb-2 text-white">
-            Timed Arena
-          </h2>
-          <p className="text-sm text-gray-400 mb-4">
-            Create or join a timed arena and compete!
-          </p>
-          <button
-            onClick={() => navigate("/arena")}
-            className="w-full px-4 py-3 font-bold text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors text-lg"
-          >
-            Timed Arena
-          </button>
-        </div>
+          {!searching ? (
+            <button
+              id="home-play"
+              onClick={handlePlay}
+              disabled={!socket}
+              className="btn btn-primary btn-lg"
+            >
+              Play {selectedTc.label}
+            </button>
+          ) : (
+            <div className="flex items-center gap-5">
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-3 w-3">
+                  <span
+                    className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                    style={{ background: "var(--accent)" }}
+                  />
+                  <span
+                    className="relative inline-flex rounded-full h-3 w-3"
+                    style={{ background: "var(--accent)" }}
+                  />
+                </span>
+                <span
+                  className="text-sm font-medium"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  Searching for opponent…
+                </span>
+              </div>
+              <button
+                onClick={handleCancel}
+                className="text-xs underline underline-offset-2 transition-colors"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
 
-        <button
-          onClick={logout}
-          className="w-full px-4 py-2 font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-        >
-          Log Out
-        </button>
-      </div>
+          {currentUser && (
+            <div
+              className="mt-14 pt-6 flex items-center gap-8 flex-wrap"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
+              {[
+                { label: "Rating", val: currentUser.rating ?? 1200 },
+                { label: "Games Played", val: currentUser.gamesPlayed ?? 0 },
+                { label: "Signed in as", val: currentUser.userName },
+              ].map(({ label, val }) => (
+                <div key={label}>
+                  <p className="label mb-0.5">{label}</p>
+                  <p className="text-base font-bold text-white">{val}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 };
