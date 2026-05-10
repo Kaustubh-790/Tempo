@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
-import { Chessboard } from "react-chessboard";
+import { Chessboard, fenStringToPositionObject } from "react-chessboard";
 import { Chess } from "chess.js";
 import { useSocket } from "../contexts/SocketContext";
 import "./Game.css";
@@ -19,7 +19,13 @@ const Game = () => {
 
   const [rejoinStatus, setRejoinStatus] = useState("pending");
   const [confirmResign, setConfirmResign] = useState(false);
-  const [pendingPromotion, setPendingPromotion] = useState(null); // { from, to }
+
+  // pendingPromotion: { from, to, posObj }
+  // posObj is a position object with the pawn already on the target square.
+  // We pass it directly as the `position` prop to <Chessboard> so the pawn
+  // stays visible on rank 8/1 while the dialog is open — no chess.js temp
+  // move is needed and the library never gets a chance to snap it back.
+  const [pendingPromotion, setPendingPromotion] = useState(null);
 
   const gameId = gameData?.gameId || routeGameId;
   const playerColor = gameData?.color || "white";
@@ -158,6 +164,8 @@ const Game = () => {
       whiteTime: newWt,
       blackTime: newBt,
     }) => {
+      setPendingPromotion(null);
+
       const newBoard = newFen.split(" ")[0];
       const currentBoard = chessRef.current.fen().split(" ")[0];
 
@@ -191,14 +199,8 @@ const Game = () => {
     };
 
     const onMoveRejected = ({ reason }) => {
-      chessRef.current.undo();
-
-      if (
-        chessRef.current.fen().split(" ")[0] !==
-        serverFenRef.current.split(" ")[0]
-      ) {
-        chessRef.current.load(serverFenRef.current);
-      }
+      setPendingPromotion(null);
+      chessRef.current.load(serverFenRef.current);
       setFen(serverFenRef.current);
       setStatusText(`Move rejected: ${reason.replace(/_/g, " ")}`);
       setTimeout(() => setStatusText(""), 3000);
@@ -207,6 +209,7 @@ const Game = () => {
     const onGameOver = (data) => {
       setGameOver(data);
       setConfirmResign(false);
+      setPendingPromotion(null);
     };
 
     const onMatchStarted = (newGameData) => {
@@ -316,9 +319,23 @@ const Game = () => {
     }
   });
 
-  // react-chessboard v5 snaps the piece back when onPieceDrop returns false.
-  // So for promotions we must return true (by making a temp queen move) to keep
-  // the piece on the target square, then swap to the user's choice in the dialog.
+  // ─── Promotion fix ───────────────────────────────────────────────────────────
+  //
+  // The core problem: react-chessboard v5 snaps the piece back whenever
+  // onPieceDrop returns false. There is no way to "pause" the drop mid-air.
+  //
+  // Strategy:
+  //   • onPieceDrop returns false for promotions (expected snap-back).
+  //   • BUT simultaneously we set pendingPromotion which contains a position
+  //     *object* (not FEN) with the pawn manually placed on the target square.
+  //   • The board's `position` prop switches to this object on the same render,
+  //     so by the time the snap-back animation would run, the board already
+  //     shows the pawn on rank 8/1 — the snap is invisible.
+  //   • When the user picks a piece, chess.js makes the real move and we go
+  //     back to FEN-driven mode. On cancel we just clear pendingPromotion.
+  //
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const onPieceDrop = useCallback(
     ({ piece, sourceSquare, targetSquare }) => {
       if (!targetSquare) return false;
@@ -336,19 +353,15 @@ const Game = () => {
           (myColorChar === "b" && targetSquare[1] === "1"));
 
       if (isPromotion) {
-        try {
-          const result = chessRef.current.move({
-            from: sourceSquare,
-            to: targetSquare,
-            promotion: "q",
-          });
-          if (!result) return false;
-          setFen(chessRef.current.fen());
-          setPendingPromotion({ from: sourceSquare, to: targetSquare });
-          return true;
-        } catch {
-          return false;
-        }
+        // Build a position object from the current FEN and move the pawn into
+        // the target square manually (keeping it as a pawn for now).
+        const posObj = fenStringToPositionObject(chessRef.current.fen());
+        delete posObj[sourceSquare];
+        posObj[targetSquare] = { pieceType: piece.pieceType }; // still a pawn
+        // Setting this causes the board to use posObj as its position prop on
+        // the very next render, before the snap-back animation can run.
+        setPendingPromotion({ from: sourceSquare, to: targetSquare, posObj });
+        return false; // intentional — board snaps back, but posObj overrides it
       }
 
       try {
@@ -374,9 +387,7 @@ const Game = () => {
   const handlePromotionPick = (promotionPiece) => {
     if (!pendingPromotion) return;
     const { from, to } = pendingPromotion;
-    setPendingPromotion(null);
-
-    chessRef.current.undo();
+    setPendingPromotion(null); // go back to FEN-driven mode
 
     try {
       const result = chessRef.current.move({
@@ -385,7 +396,6 @@ const Game = () => {
         promotion: promotionPiece,
       });
       if (!result) {
-        chessRef.current.load(serverFenRef.current);
         setFen(serverFenRef.current);
         return;
       }
@@ -403,13 +413,11 @@ const Game = () => {
   };
 
   const handlePromotionCancel = () => {
-    if (!pendingPromotion) return;
-
-    chessRef.current.undo();
-    chessRef.current.load(serverFenRef.current);
-    setFen(serverFenRef.current);
+    // Clearing pendingPromotion switches back to `fen` (pre-move state) — correct.
     setPendingPromotion(null);
   };
+
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const canDragPiece = useCallback(
     ({ piece }) => {
@@ -466,6 +474,10 @@ const Game = () => {
     560,
     typeof window !== "undefined" ? window.innerWidth - 48 : 560,
   );
+
+  // Key insight: pass the position *object* while promotion dialog is open so
+  // the pawn stays on the target square. Otherwise pass the FEN string as usual.
+  const boardPosition = pendingPromotion ? pendingPromotion.posObj : fen;
 
   if (!gameData && rejoinStatus === "pending") {
     return (
@@ -566,7 +578,7 @@ const Game = () => {
           <Chessboard
             options={{
               id: "game-board",
-              position: fen,
+              position: boardPosition,
               onPieceDrop,
               boardOrientation: playerColor,
               canDragPiece,
@@ -718,6 +730,7 @@ const Game = () => {
         </div>
       </div>
 
+      {/* Confirm Resign */}
       {confirmResign && (
         <div
           className="game-over-overlay"
@@ -736,7 +749,6 @@ const Game = () => {
               Confirm Action
             </p>
             <h2 style={{ fontSize: "1.25rem" }}>Resign this game?</h2>
-
             <div className="game-over-actions">
               <button
                 className="btn btn-danger btn-full"
@@ -755,6 +767,7 @@ const Game = () => {
         </div>
       )}
 
+      {/* Promotion Dialog */}
       {pendingPromotion && (
         <div className="game-over-overlay" onClick={handlePromotionCancel}>
           <div
@@ -863,6 +876,7 @@ const Game = () => {
         </div>
       )}
 
+      {/* Game Over */}
       {gameOver && (
         <div className="game-over-overlay">
           <div className="game-over-modal">
@@ -918,6 +932,7 @@ const Game = () => {
         </div>
       )}
 
+      {/* Looking for match */}
       {isLookingForMatch && !arenaExpired && (
         <div className="game-over-overlay">
           <div
@@ -936,10 +951,7 @@ const Game = () => {
                 marginBottom: "0.75rem",
               }}
             >
-              <span
-                className="relative flex h-3 w-3"
-                style={{ position: "relative" }}
-              >
+              <span style={{ position: "relative" }}>
                 <span
                   style={{
                     position: "absolute",
@@ -999,6 +1011,7 @@ const Game = () => {
         </div>
       )}
 
+      {/* Requeue banner */}
       {requeue && (
         <div className="requeue-banner" style={{ zIndex: 9999 }}>
           Queuing for next match in {requeue.secondsLeft}s…
