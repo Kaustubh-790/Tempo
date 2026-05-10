@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
-import { Chessboard } from "react-chessboard";
+import { Chessboard, defaultPieces } from "react-chessboard";
 import { Chess } from "chess.js";
 import { useSocket } from "../contexts/SocketContext";
 import "./Game.css";
@@ -568,11 +568,12 @@ const Game = () => {
             const file = pendingPromotion.to.charCodeAt(0) - 97;
             const fileIdx = playerColor === "white" ? file : 7 - file;
             const isTop = playerColor === "white";
+            const colorPrefix = playerColor === "white" ? "w" : "b";
             const promoOptions = [
-              { p: "q", s: playerColor === "white" ? "♕" : "♛" },
-              { p: "n", s: playerColor === "white" ? "♘" : "♞" },
-              { p: "r", s: playerColor === "white" ? "♖" : "♜" },
-              { p: "b", s: playerColor === "white" ? "♗" : "♝" },
+              { p: "q", key: colorPrefix + "Q" },
+              { p: "n", key: colorPrefix + "N" },
+              { p: "r", key: colorPrefix + "R" },
+              { p: "b", key: colorPrefix + "B" },
             ];
             return (
               <>
@@ -582,7 +583,7 @@ const Game = () => {
                     position: "absolute",
                     inset: 0,
                     zIndex: 99,
-                    background: "rgba(0,0,0,0.25)",
+                    background: "rgba(0,0,0,0.35)",
                   }}
                 />
                 <div
@@ -594,12 +595,10 @@ const Game = () => {
                     zIndex: 100,
                     display: "flex",
                     flexDirection: "column",
-                    boxShadow: "2px 4px 16px rgba(0,0,0,0.45)",
-                    borderRadius: 4,
-                    overflow: "hidden",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
                   }}
                 >
-                  {promoOptions.map(({ p, s }) => (
+                  {promoOptions.map(({ p, key }, i) => (
                     <button
                       key={p}
                       onClick={() => handlePromotionPick(p)}
@@ -609,39 +608,38 @@ const Game = () => {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        background: "#f0d9b5",
+                        background: "#ffffff",
                         border: "none",
-                        borderBottom: "1px solid rgba(0,0,0,0.1)",
+                        borderBottom: i < 3 ? "1px solid #d1d1d1" : "none",
                         cursor: "pointer",
-                        padding: 0,
-                        fontSize: sqSize * 0.7,
-                        lineHeight: 1,
+                        padding: sqSize * 0.08,
                         transition: "background 0.1s",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "#dcc4a0"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "#f0d9b5"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#e8e8e8"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
                     >
-                      {s}
+                      {defaultPieces[key]&& defaultPieces[key]()}
                     </button>
                   ))}
                   <button
                     onClick={handlePromotionCancel}
                     style={{
                       width: sqSize,
-                      height: sqSize * 0.6,
+                      height: sqSize * 0.55,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      background: "#e8e0d4",
+                      background: "#ffffff",
                       border: "none",
+                      borderTop: "1px solid #d1d1d1",
                       cursor: "pointer",
                       padding: 0,
-                      fontSize: sqSize * 0.35,
-                      color: "#888",
+                      fontSize: sqSize * 0.3,
+                      color: "#999",
                       fontWeight: 700,
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "#d4ccc0"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "#e8e0d4"; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#e8e8e8"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
                   >
                     ✕
                   </button>
