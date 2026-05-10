@@ -550,14 +550,16 @@ const Game = () => {
           style={{ width: boardWidth, height: boardWidth }}
         >
           <Chessboard
-            id="game-board"
-            position={fen}
-            onPieceDrop={onPieceDrop}
-            boardOrientation={playerColor}
-            isDraggablePiece={canDragPiece}
-            animationDuration={180}
-            customDarkSquareStyle={{ backgroundColor: "#779952" }}
-            customLightSquareStyle={{ backgroundColor: "#edeed1" }}
+            options={{
+              id: "game-board",
+              position: fen,
+              onPieceDrop,
+              boardOrientation: playerColor,
+              canDragPiece,
+              animationDurationInMs: 180,
+              darkSquareStyle: { backgroundColor: "#779952" },
+              lightSquareStyle: { backgroundColor: "#edeed1" },
+            }}
           />
         </div>
 
