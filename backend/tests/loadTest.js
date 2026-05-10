@@ -18,10 +18,19 @@ import dotenv from "dotenv";
 import { Chess } from "chess.js";
 import { performance } from "perf_hooks";
 import User from "../models/User.js";
-import { Agent } from "http";
+import { Agent as HttpAgent } from "http";
+import { Agent as HttpsAgent } from "https";
 
-const agent = new Agent({ maxSockets: Infinity });
+const agent = new HttpsAgent({
+  maxSockets: Infinity,
+  rejectUnauthorized: false,
+});
 
+// for local testing
+/**
+ * const agent = new Agent({ maxSockets: Infinity });
+ * change httpsAgent to httpAgent at line 84
+ */
 dotenv.config();
 
 const arg = (name, fallback) => {
@@ -81,7 +90,7 @@ async function createArena(token) {
     { duration: 10, timeControl: TIME_CTRL },
     { headers: { Cookie: `jwt=${token}` } },
     {
-      httpAgent: agent,
+      httpsAgent: agent,
     },
   );
   return res.data;
@@ -233,7 +242,7 @@ async function runPair(botA, botB, pairIndex) {
   if (seenGameIds.has(dataA.gameId)) {
     stats.duplicateGameIds++;
     console.error(
-      `[Pair ${pairIndex}] ⚠️  DUPLICATE gameId ${dataA.gameId.slice(0, 8)}`,
+      `[Pair ${pairIndex}] DUPLICATE gameId ${dataA.gameId.slice(0, 8)}`,
     );
     sA.disconnect();
     sB.disconnect();
@@ -259,7 +268,7 @@ async function runPair(botA, botB, pairIndex) {
   try {
     await Promise.all([playGame(sA, dataA), playGame(sB, dataB)]);
     stats.gamesCompleted++;
-    console.log(`  [Pair ${pairIndex}] ✓ Game complete`);
+    console.log(`  [Pair ${pairIndex}]  Game complete`);
   } catch (err) {
     stats.gameErrors++;
     console.error(`[Pair ${pairIndex}] Game error:`, err.message);

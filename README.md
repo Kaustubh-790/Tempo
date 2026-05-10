@@ -2,7 +2,7 @@
 
 A production-grade multiplayer chess server built with Node.js, Socket.IO, and Redis — designed for horizontal scalability and real-time performance.
 
-Inspired by Lichess (LILA), it supports ranked matchmaking, timed arenas, server-side move validation, ELO rating, and rich PGN/FEN metadata generation.
+Inspired by Lichess (LILA), it supports ranked matchmaking, timed arenas, server-side move validation, ELO rating, and PGN/FEN generation.
 
 ---
 
@@ -16,25 +16,35 @@ Inspired by Lichess (LILA), it supports ranked matchmaking, timed arenas, server
 ![BullMQ](https://img.shields.io/badge/BullMQ-Job%20Queue-FF4500?style=flat-square&logo=bull&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth-FFCA28?style=flat-square&logo=firebase&logoColor=black)
 ![PM2](https://img.shields.io/badge/PM2-Cluster%20Mode-2B037A?style=flat-square&logo=pm2&logoColor=white)
-![AWS](https://img.shields.io/badge/AWS-EC2%20%2B%20ALB-FF9900?style=flat-square&logo=amazon-aws&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-EC2%20%2B%20Nginx-FF9900?style=flat-square&logo=amazon-aws&logoColor=white)
 
 ---
 
 ## Performance
 
-> **Tested locally** — load test run on a single machine using PM2 cluster mode. Numbers reflect real WebSocket RTT under concurrent load, not a cloud deployment.
+Benchmarked using a custom bot harness (`tests/loadTest.js`) — each pair creates a private arena, plays a full game to completion, and records move RTT (move_attempt → board_sync round trip).
 
-Load tested at **500 concurrent users** using a custom bot harness (`tests/loadTest.js`):
+### Live Server — AWS EC2 t3.micro (2 vCPU · 1GB RAM · PM2 cluster · Nginx)
 
-| Metric                          | Result         |
-| ------------------------------- | -------------- |
-| **P50 RTT** (move → board_sync) | ~140ms         |
-| **P95 RTT**                     | **292ms**      |
-| **P99 RTT**                     | **405ms**      |
-| Concurrent users                | 500            |
-| Move throughput                 | ~120 moves/sec |
+| Concurrent Users    | P50 RTT | P95 RTT | P99 RTT | Throughput    | Success Rate |
+| ------------------- | ------- | ------- | ------- | ------------- | ------------ |
+| **200** (100 pairs) | 51.2ms  | 143.4ms | 228.0ms | 265 moves/sec | 100/100      |
+| **400** (200 pairs) | 157.5ms | 310.4ms | 397.3ms | 357 moves/sec | 182/200      |
 
-Tested with PM2 cluster mode (all CPU cores) + Redis pub/sub adapter for cross-instance socket fanout.
+**Single-instance ceiling: ~200–300 concurrent users.** At 400, 28 connection errors appear and a 10s max RTT spike indicates resource saturation — the degradation zone, not failure. t3.micro has 2 vCPUs but runs on burstable CPU credits, so sustained load exhausts the credit balance and throttles performance.
+
+### Local — PM2 cluster (all cores · Redis · MongoDB local )
+
+| Concurrent Users    | P50 RTT | P95 RTT | P99 RTT | Throughput    | Success Rate |
+| ------------------- | ------- | ------- | ------- | ------------- | ------------ |
+| **100** (50 pairs)  | 38.6ms  | 72.2ms  | 150.3ms | 175 moves/sec | 50/50        |
+| **500** (250 pairs) | ~140ms  | 292ms   | 405ms   | 120 moves/sec | 250/250      |
+
+### Scaling Extrapolation
+
+The bottleneck on EC2 is CPU — Redis and MongoDB are not the constraint at this scale. The codebase is already built for horizontal scaling: `@socket.io/redis-adapter` handles cross-instance fanout, and a distributed `SET NX` lock prevents duplicate matchmaking across instances.
+
+Adding a second identical EC2 instance behind an ALB would move the clean ceiling from ~300 to ~600 concurrent users. Beyond that, ElastiCache becomes relevant as Redis connection count starts to matter. Current deployment uses single-instance multi-core
 
 ---
 
@@ -42,13 +52,17 @@ Tested with PM2 cluster mode (all CPU cores) + Redis pub/sub adapter for cross-i
 
 ```mermaid
 flowchart TD
-    A[Clients\nBrowser · WebSocket · HTTP]
-    B[AWS ALB\nCookie-based sticky sessions]
-    C[Node.js Instance A\nPM2 cluster · Socket.IO · Express]
-    D[Node.js Instance B\nPM2 cluster · Socket.IO · Express]
-    E[(Redis · ElastiCache\nGame state · Queues · pub/sub · BullMQ)]
-    F[BullMQ Worker\n5 retries · exponential backoff]
-    G[(MongoDB\nUsers · Matches · ELO)]
+    A[Frontend\nReact · Vite · Vercel]
+
+    subgraph "AWS EC2 — Ubuntu 22.04"
+        B[Nginx\nReverse Proxy · SSL via Certbot]
+        C[Node.js Core 0\nPM2 cluster]
+        D[Node.js Core 1\nPM2 cluster]
+        E[(Redis\nDocker · pub/sub adapter)]
+        F[BullMQ Worker\nAsync DB writes]
+    end
+
+    G[(MongoDB Atlas)]
 
     A -->|WSS / HTTPS| B
     B --> C
@@ -62,12 +76,16 @@ flowchart TD
 
 **Key design decisions:**
 
-- **All game state lives in Redis**, so any instance can handle any request
-- **`@socket.io/redis-adapter`** handles cross-instance socket room fanout transparently
-- **Sticky sessions at the ALB** keep a player's WebSocket on the same instance — explained in detail below
+- **All game state lives in Redis** any PM2 worker process can handle any request
+- **`@socket.io/redis-adapter`** handles cross-instance socket room fanout transparently across all PM2 workers
+- **Pure WebSocket transport** (`transports: ["websocket"]`) — bypasses Socket.IO's HTTP polling fallback entirely, which eliminates sticky-session requirements at the load balancer level. All workers share state via Redis so any worker can handle any connection
 - **BullMQ worker** handles all MongoDB writes asynchronously after game completion — the game loop never blocks on DB I/O
-- **Distributed matchmaking lock** (`redis SET NX`) prevents two instances from popping the same two players simultaneously
-- **`localSockets` Map** in `gameSocket.js` short-circuits `io.to(socketId)` when both players are on the same instance, avoiding a Redis round-trip
+- **Distributed matchmaking lock** (`redis SET NX`) prevents two PM2 workers from popping the same two players simultaneously
+- **`localSockets` Map** in `gameSocket.js` short-circuits `io.to(socketId)` when both players land on the same worker process, avoiding a Redis round-trip
+
+### Why single EC2 + Nginx instead of multi-instance ALB?
+
+The codebase is built for horizontal multi-instance scaling — Redis adapter, distributed locks, and pure WebSocket transport are all in place for it. The current deployment uses a single EC2 instance with PM2 cluster mode across all CPU cores for a practical reason: ALB + ElastiCache adds real cost.
 
 ---
 
@@ -82,13 +100,13 @@ flowchart TD
 
 ### Matchmaking
 
-- Global matchmaking queue partitioned by time control label (e.g. `"1 min"`, `"5+3"`, `"unlimited"`)
-- Distributed lock prevents duplicate matches across PM2 instances
+- Global matchmaking queue partitioned by time control label (e.g. `"1 min"`, `"5+3"`, `"10"`)
+- Distributed lock prevents duplicate matches across PM2 workers
 - Player rejoin support — reconnecting players are restored to their active game
 
 ### Arena Mode
 
-- Admin-created timed arenas with configurable duration and time control
+- Create timed arenas with configurable duration and time control
 - Redis-backed queue per arena; automatic expiry cleans up all active games
 - After each game, both players are automatically re-queued into the same arena with a 5-second countdown
 
@@ -240,36 +258,20 @@ node tests/loadTest.js --pairs=50 --moveDelay=100
 
 ## Deployment
 
-**Current status:** Runs locally via PM2 cluster mode. Redis and MongoDB run via Docker.
+**Backend:** Single AWS EC2 instance(Ubuntu 22.04), PM2 cluster mode across all CPU cores, Nginx as reverse proxy with SSL via Certbot.
 
-**Planned deployment (in progress):** AWS EC2 instances behind an ALB with cookie-based sticky sessions + ElastiCache Redis. The codebase is already built for this — `@socket.io/redis-adapter` handles cross-instance fanout, PM2 cluster config is committed, sticky session handling is documented above.
+**Frontend:** Vercel — static assets, global CDN, instant SSL.
 
-> Render deployment was attempted but breaks in multi-instance mode due to lack of sticky session control on their free tier. A single-instance Render deploy works fine.
+**Database:** MongoDB Atlas.
 
-### Recommended AWS setup
-
-```
-ALB (cookie-based sticky sessions enabled)
-  ├── EC2 t2.micro (Node.js instance A)
-  └── EC2 t2.micro (Node.js instance B)
-            ↕
-    ElastiCache Redis (or self-hosted on a third t2.micro)
-```
-
-1. Launch 2+ EC2 instances, clone and run the server on each
-2. Create an ALB target group pointing to both instances
-3. Enable **duration-based stickiness** (AWS console → Target Group → Attributes)
-4. Point `REDIS_URL` on all instances to shared Redis
-5. Done — instances share all game state through Redis; the adapter handles socket room fanout automatically
+**Redis:** Docker container on the same EC2 instance.
 
 ---
 
-## Known Limitations / Roadmap
+## Roadmap
 
-- [ ] **AWS deployment in progress** — single-instance local works; multi-instance ALB setup planned for next sprint
-- [ ] **Minimal test frontend included** — a barebones client exists in `/frontend` to validate gameplay locally. It is not production UI and not the focus of this project
 - [ ] Per-move engine analysis (Stockfish integration)
 - [ ] Cheat detection
 - [ ] Spectator mode
 - [ ] Tournament bracket support
-- [ ] Production frontend
+- [ ] Multi-instance horizontal scaling (ALB + ElastiCache) — architecture is there, infrastructure is a cost decision
