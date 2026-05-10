@@ -324,7 +324,7 @@ const Game = () => {
         setTimeout(() => setStatusText(""), 2000);
         return false;
       }
-      const pieceType = piece.pieceType.toLowerCase();
+      const pieceType = piece.pieceType ? piece.pieceType.toLowerCase() : (piece[1] || "").toLowerCase();
       const isPromotion =
         pieceType === "p" &&
         ((myColorChar === "w" && targetSquare[1] === "8") ||
@@ -398,13 +398,9 @@ const Game = () => {
   };
 
   const canDragPiece = useCallback(
-    (args) => {
+    ({ piece }) => {
       if (gameOver) return false;
-      const pieceStr = typeof args.piece === "string" ? args.piece : args.piece?.piece || args;
-      if (typeof pieceStr !== "string") return false;
-      
-      const myColorChar = playerColor === "white" ? "w" : "b";
-      return turn === myColorChar && pieceStr[0] === myColorChar;
+      return turn === (playerColor === "white" ? "w" : "b");
     },
     [playerColor, turn, gameOver],
   );
