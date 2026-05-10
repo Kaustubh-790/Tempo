@@ -222,6 +222,7 @@ const Game = () => {
       setStatusText("");
       setRejoinStatus("ok");
       setConfirmResign(false);
+      setPendingPromotion(null);
       if (newGameData.whiteTime !== undefined)
         setWhiteTime(newGameData.whiteTime);
       if (newGameData.blackTime !== undefined)
@@ -315,6 +316,9 @@ const Game = () => {
     }
   });
 
+  // react-chessboard v5 snaps the piece back when onPieceDrop returns false.
+  // So for promotions we must return true (by making a temp queen move) to keep
+  // the piece on the target square, then swap to the user's choice in the dialog.
   const onPieceDrop = useCallback(
     ({ piece, sourceSquare, targetSquare }) => {
       if (!targetSquare) return false;
@@ -324,6 +328,7 @@ const Game = () => {
         setTimeout(() => setStatusText(""), 2000);
         return false;
       }
+
       const pieceType = piece.pieceType.toLowerCase();
       const isPromotion =
         pieceType === "p" &&
@@ -331,8 +336,19 @@ const Game = () => {
           (myColorChar === "b" && targetSquare[1] === "1"));
 
       if (isPromotion) {
-        setPendingPromotion({ from: sourceSquare, to: targetSquare });
-        return false;
+        try {
+          const result = chessRef.current.move({
+            from: sourceSquare,
+            to: targetSquare,
+            promotion: "q",
+          });
+          if (!result) return false;
+          setFen(chessRef.current.fen());
+          setPendingPromotion({ from: sourceSquare, to: targetSquare });
+          return true;
+        } catch {
+          return false;
+        }
       }
 
       try {
@@ -359,13 +375,20 @@ const Game = () => {
     if (!pendingPromotion) return;
     const { from, to } = pendingPromotion;
     setPendingPromotion(null);
+
+    chessRef.current.undo();
+
     try {
       const result = chessRef.current.move({
         from,
         to,
         promotion: promotionPiece,
       });
-      if (!result) return;
+      if (!result) {
+        chessRef.current.load(serverFenRef.current);
+        setFen(serverFenRef.current);
+        return;
+      }
       setFen(chessRef.current.fen());
       socket.emit("move_attempt", {
         gameId,
@@ -373,7 +396,19 @@ const Game = () => {
         to,
         promotion: promotionPiece,
       });
-    } catch {}
+    } catch {
+      chessRef.current.load(serverFenRef.current);
+      setFen(serverFenRef.current);
+    }
+  };
+
+  const handlePromotionCancel = () => {
+    if (!pendingPromotion) return;
+
+    chessRef.current.undo();
+    chessRef.current.load(serverFenRef.current);
+    setFen(serverFenRef.current);
+    setPendingPromotion(null);
   };
 
   const canDragPiece = useCallback(
@@ -721,10 +756,7 @@ const Game = () => {
       )}
 
       {pendingPromotion && (
-        <div
-          className="game-over-overlay"
-          onClick={() => setPendingPromotion(null)}
-        >
+        <div className="game-over-overlay" onClick={handlePromotionCancel}>
           <div
             className="game-over-modal"
             onClick={(e) => e.stopPropagation()}
@@ -823,7 +855,7 @@ const Game = () => {
             <button
               className="btn btn-subtle btn-full"
               style={{ marginTop: "0.75rem" }}
-              onClick={() => setPendingPromotion(null)}
+              onClick={handlePromotionCancel}
             >
               Cancel
             </button>
