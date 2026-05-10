@@ -324,9 +324,10 @@ const Game = () => {
         setTimeout(() => setStatusText(""), 2000);
         return false;
       }
-      // piece.pieceType is e.g. "wP" or "bP" — last char is the actual type
+
       const pt = piece.pieceType || "";
-      const pieceType = pt.length > 1 ? pt[pt.length - 1].toLowerCase() : pt.toLowerCase();
+      const pieceType =
+        pt.length > 1 ? pt[pt.length - 1].toLowerCase() : pt.toLowerCase();
       const isPromotion =
         pieceType === "p" &&
         ((myColorChar === "w" && targetSquare[1] === "8") ||
@@ -334,7 +335,6 @@ const Game = () => {
 
       if (isPromotion) {
         try {
-          // Make a temporary move to keep the piece on the board visually
           const tempMove = chessRef.current.move({
             from: sourceSquare,
             to: targetSquare,
@@ -343,7 +343,7 @@ const Game = () => {
           if (!tempMove) return false;
           setFen(chessRef.current.fen());
           setPendingPromotion({ from: sourceSquare, to: targetSquare });
-          return true; // Don't snap back
+          return true;
         } catch {
           return false;
         }
@@ -374,7 +374,7 @@ const Game = () => {
     const { from, to } = pendingPromotion;
     setPendingPromotion(null);
     try {
-      chessRef.current.undo(); // Undo the temporary queen move
+      chessRef.current.undo();
       const result = chessRef.current.move({
         from,
         to,
@@ -393,7 +393,7 @@ const Game = () => {
 
   const handlePromotionCancel = () => {
     if (pendingPromotion) {
-      chessRef.current.undo(); // Revert the temporary queen move
+      chessRef.current.undo();
       setFen(chessRef.current.fen());
       setPendingPromotion(null);
     }
@@ -744,10 +744,7 @@ const Game = () => {
       )}
 
       {pendingPromotion && (
-        <div
-          className="game-over-overlay"
-          onClick={handlePromotionCancel}
-        >
+        <div className="game-over-overlay" onClick={handlePromotionCancel}>
           <div
             className="game-over-modal"
             onClick={(e) => e.stopPropagation()}
