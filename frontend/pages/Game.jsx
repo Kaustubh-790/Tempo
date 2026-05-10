@@ -382,56 +382,55 @@ const Game = () => {
   //   [turn, playerColor, socket, gameId],
   // );
 
-  const onPieceDrop = useCallback(
-    ({ piece, sourceSquare, targetSquare }) => {
-      if (!targetSquare) return false;
-      const myColorChar = playerColor === "white" ? "w" : "b";
-      if (turn !== myColorChar) {
-        setStatusText("Not your turn!");
-        setTimeout(() => setStatusText(""), 2000);
-        return false;
-      }
+  const onPieceDrop = (sourceSquare, targetSquare, piece) => {
+    if (gameOver) return false;
 
-      // piece = "wP"  -> piece[1] = "P"  -> .toLowerCase() = "p"
-      const pieceLetter = piece[1].toLowerCase();
-      const isPromotion =
-        pieceLetter === "p" &&
-        ((myColorChar === "w" && targetSquare[1] === "8") ||
-          (myColorChar === "b" && targetSquare[1] === "1"));
+    const myColorChar = playerColor === "white" ? "w" : "b";
+    if (turn !== myColorChar) {
+      setStatusText("Not your turn!");
+      setTimeout(() => setStatusText(""), 2000);
+      return false;
+    }
 
-      if (isPromotion) {
-        const posObj = fenStringToPositionObject(chessRef.current.fen());
-        delete posObj[sourceSquare];
-        posObj[targetSquare] = piece; // "wP" or "bP" (still a pawn)
-        setPendingPromotion({ from: sourceSquare, to: targetSquare, posObj });
-        return false; // let the board snap back, posObj hides it
-      }
+    // piece = "wP" -> piece[1].toLowerCase() = "p"
+    const pieceLetter = piece[1].toLowerCase();
+    const isPromotion =
+      pieceLetter === "p" &&
+      ((myColorChar === "w" && targetSquare[1] === "8") ||
+        (myColorChar === "b" && targetSquare[1] === "1"));
 
-      // Normal move
-      try {
-        const result = chessRef.current.move({
-          from: sourceSquare,
-          to: targetSquare,
-        });
-        if (!result) return false;
-        setFen(chessRef.current.fen());
-        socket.emit("move_attempt", {
-          gameId,
-          from: sourceSquare,
-          to: targetSquare,
-        });
-        return true;
-      } catch {
-        return false;
-      }
-    },
-    [turn, playerColor, socket, gameId],
-  );
+    if (isPromotion) {
+      const posObj = fenStringToPositionObject(chessRef.current.fen());
+      delete posObj[sourceSquare];
+      posObj[targetSquare] = piece; // Keep the pawn on target visually
+      setPendingPromotion({ from: sourceSquare, to: targetSquare, posObj });
+      return true;
+    }
+
+    // Normal move
+    try {
+      const result = chessRef.current.move({
+        from: sourceSquare,
+        to: targetSquare,
+      });
+      if (!result) return false;
+
+      setFen(chessRef.current.fen());
+      socket.emit("move_attempt", {
+        gameId,
+        from: sourceSquare,
+        to: targetSquare,
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
 
   const handlePromotionPick = (promotionPiece) => {
     if (!pendingPromotion) return;
     const { from, to } = pendingPromotion;
-    setPendingPromotion(null); // go back to FEN-driven mode
+    setPendingPromotion(null);
 
     try {
       const result = chessRef.current.move({
@@ -439,26 +438,25 @@ const Game = () => {
         to,
         promotion: promotionPiece,
       });
-      if (!result) {
-        setFen(serverFenRef.current);
-        return;
+      if (result) {
+        setFen(chessRef.current.fen());
+        socket.emit("move_attempt", {
+          gameId,
+          from,
+          to,
+          promotion: promotionPiece,
+        });
+      } else {
+        setFen(chessRef.current.fen()); // Reset board
       }
+    } catch (e) {
       setFen(chessRef.current.fen());
-      socket.emit("move_attempt", {
-        gameId,
-        from,
-        to,
-        promotion: promotionPiece,
-      });
-    } catch {
-      chessRef.current.load(serverFenRef.current);
-      setFen(serverFenRef.current);
     }
   };
 
   const handlePromotionCancel = () => {
-    // Clearing pendingPromotion switches back to `fen` (pre-move state) — correct.
     setPendingPromotion(null);
+    setFen(chessRef.current.fen()); // Triggers re-render to snap back
   };
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -620,16 +618,13 @@ const Game = () => {
           style={{ width: boardWidth, height: boardWidth }}
         >
           <Chessboard
-            options={{
-              id: "game-board",
-              position: boardPosition,
-              onPieceDrop,
-              boardOrientation: playerColor,
-              canDragPiece,
-              animationDurationInMs: 180,
-              darkSquareStyle: { backgroundColor: "#779952" },
-              lightSquareStyle: { backgroundColor: "#edeed1" },
-            }}
+            id="game-board"
+            position={boardPosition}
+            onPieceDrop={onPieceDrop}
+            boardOrientation={playerColor}
+            animationDuration={180}
+            customDarkSquareStyle={{ backgroundColor: "#779952" }}
+            customLightSquareStyle={{ backgroundColor: "#edeed1" }}
           />
         </div>
 
