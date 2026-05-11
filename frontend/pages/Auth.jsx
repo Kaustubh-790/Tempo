@@ -78,7 +78,7 @@ const Auth = () => {
                   onChange={(e) => setUserName(e.target.value)}
                   required={!isLogin}
                   autoComplete="username"
-                  placeholder="chessmaster99"
+                  placeholder="your userName"
                 />
               </div>
             )}
