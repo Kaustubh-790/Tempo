@@ -1,8 +1,14 @@
 import { arenaService } from "./arenaService.js";
+import { gameService } from "../services/gameService.js";
 import { startMatch } from "../utils/socketStartMatch.js";
 
 export const registerArenaHandlers = (io, socket) => {
   socket.on("join_arena", async ({ arenaId }) => {
+    const activeGame = await gameService.getGameByUserId(socket.user._id);
+    if (activeGame) {
+      return socket.emit("already_in_game", { gameId: activeGame.gameId });
+    }
+
     const result = await arenaService.joinArena(arenaId, socket, socket.user);
 
     if (result.error) {

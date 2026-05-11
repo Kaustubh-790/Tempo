@@ -3,6 +3,11 @@ import { startMatch } from "../utils/socketStartMatch.js";
 
 export const registerMatchMakingHandlers = (io, socket) => {
   socket.on("enter_arena", async (payload) => {
+    const activeGame = await gameService.getGameByUserId(socket.user._id);
+    if (activeGame) {
+      return socket.emit("already_in_game", { gameId: activeGame.gameId });
+    }
+
     const timeControl = payload?.timeControl || null;
     const added = await gameService.addToQueue(
       socket,

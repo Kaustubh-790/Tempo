@@ -151,16 +151,22 @@ const Arena = () => {
       setExpired(true);
       setQueue([]);
     };
+    const onAlreadyInGame = ({ gameId }) => {
+      setError("You have an active game! Redirecting...");
+      setTimeout(() => navigate(`/game/${gameId}`), 1000);
+    };
 
     socket.on("match_started", onMatchStarted);
     socket.on("arena_error", onArenaError);
     socket.on("arena_queue_update", onQueueUpdate);
     socket.on("arena_expired", onArenaExpired);
+    socket.on("already_in_game", onAlreadyInGame);
     return () => {
       socket.off("match_started", onMatchStarted);
       socket.off("arena_error", onArenaError);
       socket.off("arena_queue_update", onQueueUpdate);
       socket.off("arena_expired", onArenaExpired);
+      socket.off("already_in_game", onAlreadyInGame);
     };
   }, [socket, navigate]);
 

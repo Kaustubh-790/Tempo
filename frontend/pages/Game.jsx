@@ -231,11 +231,7 @@ const Game = () => {
         `game-${newGameData.gameId}`,
         JSON.stringify(newGameData),
       );
-      window.history.replaceState(
-        newGameData,
-        "",
-        `/game/${newGameData.gameId}`,
-      );
+      navigate(`/game/${newGameData.gameId}`, { state: newGameData, replace: true });
     };
 
     const onRequeueCountdown = ({ secondsLeft, arenaId }) => {

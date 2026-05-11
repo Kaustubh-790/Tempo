@@ -29,8 +29,16 @@ const Home = () => {
       );
       navigate(`/game/${gameData.gameId}`, { state: gameData });
     };
+    const onAlreadyInGame = ({ gameId }) => {
+      setSearching(false);
+      navigate(`/game/${gameId}`);
+    };
     socket.on("match_started", onMatchStarted);
-    return () => socket.off("match_started", onMatchStarted);
+    socket.on("already_in_game", onAlreadyInGame);
+    return () => {
+      socket.off("match_started", onMatchStarted);
+      socket.off("already_in_game", onAlreadyInGame);
+    };
   }, [socket, navigate]);
 
   const handlePlay = () => {
