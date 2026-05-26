@@ -96,13 +96,18 @@ const handleGameOver = async (io, game, winner, reason) => {
           localSockets.get(player.socketId) ||
           io.sockets.sockets.get(player.socketId);
         if (!sock?.connected) continue;
+
+        const arenaRoom = io.sockets.adapter.rooms.get(
+          `arena:${finishedArenaId}`,
+        );
+        if (!arenaRoom || !arenaRoom.has(sock.id)) continue;
+
         const res = await arenaService.joinArena(
           finishedArenaId,
           sock,
           player.user,
         );
         if (res.success) {
-          sock.join(`arena:${finishedArenaId}`);
           joined.push(true);
         }
       }
