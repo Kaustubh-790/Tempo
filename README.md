@@ -2,15 +2,20 @@
 
 A production-grade multiplayer chess server built with Node.js, Socket.IO, and Redis — designed for horizontal scalability and real-time performance.
 
-Inspired by Lichess [(LILA)](https://github.com/lichess-org/lila), it supports ranked matchmaking, timed arenas, server-side move validation, ELO rating, and PGN/FEN generation.
+It supports:
 
-## live demo: [https://chess-server-six.vercel.app](https://chess-server-six.vercel.app)
+- ranked matchmaking
+- timed arenas
+- server-authoritative move validation
+- reconnection handling
+- Redis-backed distributed game state
+- horizontal scaling through Socket.IO Redis adapter
 
----
+Inspired by Lichess (LILA), Tempo is designed around low-latency gameplay and scalable real-time architecture.
 
-## System Overview
+## Live Demo
 
-Tempo is a distributed real-time chess backend where game state is managed in Redis, matchmaking is handled through distributed queues, and MongoDB is used only for persistent storage. The system is designed to support horizontal scaling using Socket.IO Redis adapter and stateless backend workers.
+[tempo-live.vercel.app](https://chess-server-six.vercel.app)
 
 ---
 
@@ -37,9 +42,9 @@ Benchmarked using a custom bot harness (`tests/loadTest.js`) — each pair creat
 | Concurrent Users    | P50 RTT | P95 RTT | P99 RTT | Throughput    | Success Rate |
 | ------------------- | ------- | ------- | ------- | ------------- | ------------ |
 | **200** (100 pairs) | 51.2ms  | 143.4ms | 228.0ms | 265 moves/sec | 100/100      |
-| **400** (200 pairs) | 157.5ms | 310.4ms | 397.3ms | 357 moves/sec | 182/200      |
+| **400** (200 pairs) | 157.5ms | 310.4ms | 397.3ms | 357 moves/sec | 172/200      |
 
-**Single-instance ceiling: ~200–300 concurrent users.** At 400, 28 connection errors appear and a 10s max RTT spike indicates resource saturation — the degradation zone, not failure. t3.micro has 2 vCPUs but runs on burstable CPU credits, so sustained load exhausts the credit balance and throttles performance.
+**Single-instance ceiling: ~200–300 concurrent users.** At 400, 28 connection errors appear and max RTT spike indicates resource saturation — the degradation zone, not failure. t3.micro has 2 vCPUs but runs on burstable CPU credits, so sustained load exhausts the credit balance and throttles performance.
 
 ### Local — PM2 cluster (all cores · Redis · MongoDB local )
 
@@ -89,7 +94,6 @@ flowchart TD
 - **Pure WebSocket transport** (`transports: ["websocket"]`) — bypasses Socket.IO's HTTP polling fallback entirely, which eliminates sticky-session requirements at the load balancer level. All workers share state via Redis so any worker can handle any connection.
 - **BullMQ worker** handles all MongoDB writes asynchronously after game completion — the game loop never blocks on DB I/O.
 - **Distributed matchmaking lock** (`redis SET NX`) prevents two PM2 workers from popping the same two players simultaneously.
-- **`localSockets` Map** in `gameSocket.js` short-circuits `io.to(socketId)` when both players land on the same worker process, avoiding a Redis round-trip.
 
 ### Why single EC2 + Nginx instead of multi-instance ALB?
 
@@ -112,11 +116,19 @@ The codebase is built for horizontal multi-instance scaling — Redis adapter, d
 - Distributed lock prevents duplicate matches across PM2 workers
 - Player rejoin support — reconnecting players are restored to their active game
 
+<p align="center">
+    <img src="./frontend/public/quick-pairing.gif" alt="Quick Pairing Demo" width="600">
+</p>
+
 ### Arena Mode
 
 - Create timed arenas with configurable duration and time control
 - Redis-backed queue per arena; automatic expiry cleans up all active games
 - After each game, both players are automatically re-queued into the same arena with a 5-second countdown
+
+<p align="center">
+    <img src="./frontend/public/arena.gif" alt="Arena Demo" width="600">
+</p>
 
 ### Time Controls
 
@@ -138,6 +150,14 @@ The codebase is built for horizontal multi-instance scaling — Redis adapter, d
 - JWT issued server-side, stored in `httpOnly` cookie
 - Socket.IO middleware validates JWT from cookie on every connection
 - Firebase rollback on MongoDB write failure during registration
+
+## Reconnection Handling
+
+If a player disconnects mid-game, the server retains the game state in Redis for 5 minutes. The player can reconnect by emitting `rejoin_game` with their `gameId`. If the game still exists, they receive a `rejoin_success` event with the full game state. If the game was cleaned up due to expiry, they get a `rejoin_failed` event.
+
+<p align="center">
+    <img src="./frontend/public/reconnection.gif" alt="Reconnection Demo" width="600">
+</p>
 
 ---
 
@@ -169,6 +189,8 @@ backend/
 │   ├── gameSocket.js         # move_attempt, resign, rejoin_game handlers
 │   ├── matchmakingSocket.js  # enter_arena (global pool) handler
 │   └── index.js              # Socket setup, middleware wiring
+├── tests/
+│   └── loadTest.js           # Bot-based load test harness
 ├── utils/
 │   ├── calculateElo.js       # ELO with dynamic K-factor
 │   ├── generateTokens.js     # JWT generation
@@ -177,8 +199,8 @@ backend/
 ├── workers/
 │   ├── dbQueue.js            # BullMQ queue definition (5 retries, exponential backoff)
 │   └── dbWorker.js           # Async MongoDB writes for match results + rating updates
-├── tests/
-│   └── loadTest.js           # Bot-based load test harness
+├── .dockerignore             # Ignore node_modules, logs, etc. for Docker build context
+├── Dockerfile                # Docker image definition
 ├── ecosystem.config.cjs      # PM2 cluster config
 └── server.js                 # App entry point
 ```
@@ -253,7 +275,7 @@ This starts the full backend system using Docker Compose.
 
 ### Services
 
-- Backend(NodeJs + Socket.io)
+- Backend(NodeJs + Socket.IO)
 - Worker(BullMQ)
 - Redis
 - MongoDB

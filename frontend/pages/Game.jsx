@@ -231,7 +231,10 @@ const Game = () => {
         `game-${newGameData.gameId}`,
         JSON.stringify(newGameData),
       );
-      navigate(`/game/${newGameData.gameId}`, { state: newGameData, replace: true });
+      navigate(`/game/${newGameData.gameId}`, {
+        state: newGameData,
+        replace: true,
+      });
     };
 
     const onRequeueCountdown = ({ secondsLeft, arenaId }) => {
@@ -545,7 +548,11 @@ const Game = () => {
 
         <div
           className="board-wrapper"
-          style={{ width: boardWidth, height: boardWidth, position: "relative" }}
+          style={{
+            width: boardWidth,
+            height: boardWidth,
+            position: "relative",
+          }}
         >
           <Chessboard
             options={{
@@ -555,94 +562,103 @@ const Game = () => {
               boardOrientation: playerColor,
               canDragPiece,
               animationDurationInMs: 180,
-              darkSquareStyle: { backgroundColor: "#779952" },
-              lightSquareStyle: { backgroundColor: "#edeed1" },
+              darkSquareStyle: { backgroundColor: "#4C566A" },
+              lightSquareStyle: { backgroundColor: "#D8DEE9" },
             }}
           />
-          {pendingPromotion && (() => {
-            const sqSize = boardWidth / 8;
-            const file = pendingPromotion.to.charCodeAt(0) - 97;
-            const fileIdx = playerColor === "white" ? file : 7 - file;
-            const isTop = playerColor === "white";
-            const colorPrefix = playerColor === "white" ? "w" : "b";
-            const promoOptions = [
-              { p: "q", key: colorPrefix + "Q" },
-              { p: "n", key: colorPrefix + "N" },
-              { p: "r", key: colorPrefix + "R" },
-              { p: "b", key: colorPrefix + "B" },
-            ];
-            return (
-              <>
-                <div
-                  onClick={handlePromotionCancel}
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    zIndex: 99,
-                    background: "rgba(0,0,0,0.35)",
-                  }}
-                />
-                <div
-                  style={{
-                    position: "absolute",
-                    left: fileIdx * sqSize,
-                    [isTop ? "top" : "bottom"]: 0,
-                    width: sqSize,
-                    zIndex: 100,
-                    display: "flex",
-                    flexDirection: "column",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
-                  }}
-                >
-                  {promoOptions.map(({ p, key }, i) => (
+          {pendingPromotion &&
+            (() => {
+              const sqSize = boardWidth / 8;
+              const file = pendingPromotion.to.charCodeAt(0) - 97;
+              const fileIdx = playerColor === "white" ? file : 7 - file;
+              const isTop = playerColor === "white";
+              const colorPrefix = playerColor === "white" ? "w" : "b";
+              const promoOptions = [
+                { p: "q", key: colorPrefix + "Q" },
+                { p: "n", key: colorPrefix + "N" },
+                { p: "r", key: colorPrefix + "R" },
+                { p: "b", key: colorPrefix + "B" },
+              ];
+              return (
+                <>
+                  <div
+                    onClick={handlePromotionCancel}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      zIndex: 99,
+                      background: "rgba(0,0,0,0.35)",
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: fileIdx * sqSize,
+                      [isTop ? "top" : "bottom"]: 0,
+                      width: sqSize,
+                      zIndex: 100,
+                      display: "flex",
+                      flexDirection: "column",
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
+                    }}
+                  >
+                    {promoOptions.map(({ p, key }, i) => (
+                      <button
+                        key={p}
+                        onClick={() => handlePromotionPick(p)}
+                        style={{
+                          width: sqSize,
+                          height: sqSize,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "#ffffff",
+                          border: "none",
+                          borderBottom: i < 3 ? "1px solid #d1d1d1" : "none",
+                          cursor: "pointer",
+                          padding: sqSize * 0.08,
+                          transition: "background 0.1s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#e8e8e8";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "#ffffff";
+                        }}
+                      >
+                        {defaultPieces[key] && defaultPieces[key]()}
+                      </button>
+                    ))}
                     <button
-                      key={p}
-                      onClick={() => handlePromotionPick(p)}
+                      onClick={handlePromotionCancel}
                       style={{
                         width: sqSize,
-                        height: sqSize,
+                        height: sqSize * 0.55,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         background: "#ffffff",
                         border: "none",
-                        borderBottom: i < 3 ? "1px solid #d1d1d1" : "none",
+                        borderTop: "1px solid #d1d1d1",
                         cursor: "pointer",
-                        padding: sqSize * 0.08,
-                        transition: "background 0.1s",
+                        padding: 0,
+                        fontSize: sqSize * 0.3,
+                        color: "#999",
+                        fontWeight: 700,
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "#e8e8e8"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "#e8e8e8";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "#ffffff";
+                      }}
                     >
-                      {defaultPieces[key]&& defaultPieces[key]()}
+                      ✕
                     </button>
-                  ))}
-                  <button
-                    onClick={handlePromotionCancel}
-                    style={{
-                      width: sqSize,
-                      height: sqSize * 0.55,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "#ffffff",
-                      border: "none",
-                      borderTop: "1px solid #d1d1d1",
-                      cursor: "pointer",
-                      padding: 0,
-                      fontSize: sqSize * 0.3,
-                      color: "#999",
-                      fontWeight: 700,
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "#e8e8e8"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </>
-            );
-          })()}
+                  </div>
+                </>
+              );
+            })()}
         </div>
 
         <div className="game-status-bar">
@@ -822,9 +838,6 @@ const Game = () => {
           </div>
         </div>
       )}
-
-
-
 
       {gameOver && (
         <div className="game-over-overlay">
