@@ -8,6 +8,12 @@ Inspired by Lichess [(LILA)](https://github.com/lichess-org/lila), it supports r
 
 ---
 
+## System Overview
+
+Tempo is a distributed real-time chess backend where game state is managed in Redis, matchmaking is handled through distributed queues, and MongoDB is used only for persistent storage. The system is designed to support horizontal scaling using Socket.IO Redis adapter and stateless backend workers.
+
+---
+
 ## Tech Stack
 
 ![Node.js](https://img.shields.io/badge/Node.js-ESM-339933?style=flat-square&logo=node.js&logoColor=white)
@@ -236,6 +242,21 @@ JWT_SECRET=your_jwt_secret
 CLIENT_URL=http://localhost:5173
 FIREBASE_ADMIN_SERVICE_ACCOUNT={"type":"service_account",...}
 ```
+
+### Run (Recommended – Docker)
+
+```bash
+docker compose up --build
+```
+
+This starts the full backend system using Docker Compose.
+
+### Services
+
+- Backend(NodeJs + Socket.io)
+- Worker(BullMQ)
+- Redis
+- MongoDB
 
 ### Start (single instance)
 
