@@ -13,6 +13,37 @@ It supports:
 
 Inspired by Lichess (LILA), Tempo is designed around low-latency gameplay and scalable real-time architecture.
 
+---
+
+## Table of Contents
+
+- [Preview](#preview)
+- [Live Demo](#live-demo)
+- [Tech Stack](#tech-stack)
+- [Performance](#performance)
+- [Architecture](#architecture)
+- [Features](#features)
+  - [Game Engine](#game-engine)
+  - [Matchmaking](#matchmaking)
+  - [Arena Mode](#arena-mode)
+  - [Time Controls](#time-controls)
+  - [Ratings](#ratings)
+  - [Auth](#auth)
+  - [Reconnection Handling](#reconnection-handling)
+- [Project Structure](#project-structure)
+- [Socket Events](#socket-events)
+- [Running Locally](#running-locally)
+- [Deployment](#deployment)
+- [Roadmap](#roadmap)
+
+---
+
+## Preview
+
+<p align="center">
+  <img src="./frontend/public/preview.png" width="900"/>
+</p>
+
 ## Live Demo
 
 [tempo-live.vercel.app](https://chess-server-six.vercel.app)
@@ -117,7 +148,7 @@ The codebase is built for horizontal multi-instance scaling — Redis adapter, d
 - Player rejoin support — reconnecting players are restored to their active game
 
 <p align="center">
-    <img src="./frontend/public/quick-pairing.gif" alt="Quick Pairing Demo" width="600">
+    <img src="./frontend/public/quick_pairing.gif" alt="Quick Pairing Demo" width="600">
 </p>
 
 ### Arena Mode
@@ -127,7 +158,15 @@ The codebase is built for horizontal multi-instance scaling — Redis adapter, d
 - After each game, both players are automatically re-queued into the same arena with a 5-second countdown
 
 <p align="center">
-    <img src="./frontend/public/arena.gif" alt="Arena Demo" width="600">
+    <img src="./frontend/public/arena_mode.gif" alt="Arena Demo" width="600">
+</p>
+
+### Reconnection Handling
+
+If a player disconnects mid-game, the server retains the game state in Redis for 5 minutes. The player can reconnect by emitting `rejoin_game` with their `gameId`. If the game still exists, they receive a `rejoin_success` event with the full game state. If the game was cleaned up due to expiry, they get a `rejoin_failed` event.
+
+<p align="center">
+    <img src="./frontend/public/reconnection_handling.gif" alt="Reconnection Demo" width="600">
 </p>
 
 ### Time Controls
@@ -150,14 +189,6 @@ The codebase is built for horizontal multi-instance scaling — Redis adapter, d
 - JWT issued server-side, stored in `httpOnly` cookie
 - Socket.IO middleware validates JWT from cookie on every connection
 - Firebase rollback on MongoDB write failure during registration
-
-## Reconnection Handling
-
-If a player disconnects mid-game, the server retains the game state in Redis for 5 minutes. The player can reconnect by emitting `rejoin_game` with their `gameId`. If the game still exists, they receive a `rejoin_success` event with the full game state. If the game was cleaned up due to expiry, they get a `rejoin_failed` event.
-
-<p align="center">
-    <img src="./frontend/public/reconnection.gif" alt="Reconnection Demo" width="600">
-</p>
 
 ---
 
@@ -273,7 +304,7 @@ docker compose up --build
 
 This starts the full backend system using Docker Compose.
 
-### Services
+##### Services
 
 - Backend(NodeJs + Socket.IO)
 - Worker(BullMQ)
@@ -305,7 +336,7 @@ node tests/loadTest.js --pairs=50 --moveDelay=100
 
 **Backend:** Single AWS EC2 instance(Ubuntu 22.04), PM2 cluster mode across all CPU cores, Nginx as reverse proxy with SSL via Certbot.
 
-**Frontend:** Vercel — static assets, global CDN, instant SSL.
+**Frontend:** Vercel — static assets, global CDN.
 
 **Database:** MongoDB Atlas.
 
@@ -316,7 +347,6 @@ node tests/loadTest.js --pairs=50 --moveDelay=100
 ## Roadmap
 
 - [ ] Per-move engine analysis (Stockfish integration)
-- [ ] Cheat detection
 - [ ] Spectator mode
 - [ ] Tournament bracket support
 - [ ] Multi-instance horizontal scaling (ALB + ElastiCache) — architecture is there, infrastructure is a cost decision
